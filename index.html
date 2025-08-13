@@ -1,29 +1,5 @@
-<!DOCTYPE html>
-<html>
-<body>
-<h1>HTML Geolocation</<!DOCTYPEh1>
-<p>Click the button to get your coordinates.</p>
-
-<button onclick="getLocation()">Try It</button>
-
-<p id="demo"></p>
-
-<script>
-const x = document.getElementById("demo");
-
-function getLocation() {
-  if (navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition(showPosition);
-  } else { 
-    x.innerHTML = "Geolocation is not supported by this browser.";
-  }
-}
-
-function showPosition(position) {
-  x.innerHTML = "Latitude: " + position.coords.latitude + 
-  "<br>Longitude: " + position.coords.longitude;
-}
-</script>
-
-</body>
-</html>
+<!DOCTYPE html> 
+<html> 
+<body> 
+<form action="upload.php" method="post" enctype="multipart/form-data"> 
+Select file to upload: <input type="file" name="fileToUpload" id="fileToUpload"> <input type="submit" value="Upload File" name="submit"> </form> </body> </html>

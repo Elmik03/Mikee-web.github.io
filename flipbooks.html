@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PDF Flipbook</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+  :root {
+    --desk: #1f2a2e;
+    --desk-deep: #162023;
+    --paper: #fbf9f4;
+    --ink: #e9efe9;
+    --muted: #8da0a6;
+    --accent: #f0b429;
+    --flip: 900ms;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: radial-gradient(ellipse at 50% 40%, var(--desk) 0%, var(--desk-deep) 100%);
+    color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+  /* ---------- Home ---------- */
+  #home {
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 24px; text-align: left;
+  }
+  .home-inner { width: min(560px, 100%); }
+  h1 {
+    font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    font-weight: 600; font-size: clamp(2.2rem, 6vw, 3.4rem); line-height: 1.05;
+    margin: 0 0 12px; letter-spacing: -0.02em;
+  }
+  .lede { color: var(--muted); margin: 0 0 28px; line-height: 1.5; max-width: 46ch; }
+  #drop {
+    border: 2px dashed #46585e; border-radius: 6px; padding: 44px 24px;
+    background: rgba(255,255,255,.02); text-align: center; transition: border-color .15s, background .15s;
+  }
+  #drop.over { border-color: var(--accent); background: rgba(240,180,41,.07); }
+  #drop p { margin: 0 0 16px; }
+  .btn {
+    background: var(--accent); color: #231a00; border: 0; border-radius: 4px;
+    padding: 11px 20px; font-weight: 600;
+  }
+  .btn:hover { filter: brightness(1.08); }
+  .ghost {
+    background: transparent; border: 1px solid #46585e; border-radius: 4px; padding: 8px 14px;
+  }
+  .ghost:hover:not(:disabled) { border-color: var(--accent); }
+  .ghost:disabled { opacity: .35; cursor: default; }
+  #error { color: #ff9b8a; margin-top: 14px; min-height: 1.2em; }
+  #loading { display: none; margin-top: 14px; color: var(--muted); }
+
+  /* ---------- Viewer ---------- */
+  #viewer { display: none; flex: 1; flex-direction: column; min-height: 0; }
+  header.bar {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 12px 20px;
+  }
+  #title { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .stage {
+    flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center;
+    perspective: 2600px;
+  }
+  #book {
+    position: relative; width: calc(var(--pw) * 2); height: var(--ph);
+    transform-style: preserve-3d; transition: transform var(--flip) cubic-bezier(.45,.05,.25,1);
+  }
+  .sheet {
+    position: absolute; top: 0; left: 50%; width: var(--pw); height: var(--ph);
+    transform-origin: left center; transform-style: preserve-3d;
+    transition: transform var(--flip) cubic-bezier(.45,.05,.25,1);
+  }
+  .sheet.flipped { transform: rotateY(-180deg); }
+  .face {
+    position: absolute; inset: 0; background: var(--paper); overflow: hidden;
+    backface-visibility: hidden; -webkit-backface-visibility: hidden;
+  }
+  .face.front { box-shadow: 0 10px 30px rgba(0,0,0,.35); }
+  .face.back { transform: rotateY(180deg); box-shadow: 0 10px 30px rgba(0,0,0,.35); }
+  .face canvas { width: 100%; height: 100%; display: block; }
+  .face::after {  /* shading near the spine */
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+  }
+  .face.front::after { background: linear-gradient(to right, rgba(0,0,0,.22), rgba(0,0,0,0) 7%); }
+  .face.back::after  { background: linear-gradient(to left,  rgba(0,0,0,.22), rgba(0,0,0,0) 7%); }
+  .face.blank { background: #ece8de; }
+  .face.pending::before {
+    content: ""; position: absolute; left: 50%; top: 50%; width: 22px; height: 22px; margin: -11px;
+    border: 2px solid #cfc9b8; border-top-color: var(--accent); border-radius: 50%;
+    animation: spin .8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .zone { position: absolute; top: 0; bottom: 0; width: 50%; z-index: 9999; background: none; border: 0; padding: 0; }
+  .zone.l { left: 0; cursor: w-resize; }
+  .zone.r { right: 0; cursor: e-resize; }
+
+  footer.controls {
+    display: flex; align-items: center; justify-content: center; gap: 16px; padding: 14px 20px 20px;
+  }
+  #label { min-width: 9ch; text-align: center; color: var(--muted); font-variant-numeric: tabular-nums; }
+  #slider { width: min(260px, 30vw); accent-color: var(--accent); }
+
+  @media (prefers-reduced-motion: reduce) {
+    :root { --flip: 0ms; }
+  }
+</style>
+</head>
+<body>
+
+<section id="home">
+  <div class="home-inner">
+    <h1>Turn a PDF into a flipbook</h1>
+    <p class="lede">Choose a PDF and read it as a book with turning pages. Your file stays in your browser and is never uploaded.</p>
+    <div id="drop">
+      <p>Drop a PDF here</p>
+      <button class="btn" id="pick">Choose a PDF</button>
+      <input id="file" type="file" accept="application/pdf" hidden>
+    </div>
+    <div id="loading" role="status"></div>
+    <div id="error" role="alert"></div>
+  </div>
+</section>
+
+<section id="viewer" aria-label="Flipbook viewer">
+  <header class="bar">
+    <span id="title"></span>
+    <div>
+      <button class="ghost" id="full">Full screen</button>
+      <button class="ghost" id="another">Open another PDF</button>
+    </div>
+  </header>
+  <div class="stage">
+    <div id="book" aria-live="polite">
+      <button class="zone l" id="zl" aria-label="Previous page"></button>
+      <button class="zone r" id="zr" aria-label="Next page"></button>
+    </div>
+  </div>
+  <footer class="controls">
+    <button class="ghost" id="prev">Previous</button>
+    <input type="range" id="slider" min="0" value="0" aria-label="Go to page">
+    <span id="label"></span>
+    <button class="ghost" id="next">Next</button>
+  </footer>
+</section>
+
+<script>
+(() => {
+  const WORKER_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  const RENDER_HEIGHT = 1100;     // pixel height each page is rasterised at
+  const FLIP_MS = 900;
+
+  const $ = id => document.getElementById(id);
+  const home = $('home'), viewer = $('viewer'), book = $('book');
+  const errorEl = $('error'), loadingEl = $('loading');
+
+  let pdf = null, N = 0, S = 0, f = 0, ratio = 0.7071;
+  let sheets = [];
+  let busy = false;
+
+  /* ---------- pdf.js worker (loaded via blob to avoid cross-origin worker errors) ---------- */
+  async function initWorker() {
+    try {
+      const text = await (await fetch(WORKER_URL)).text();
+      pdfjsLib.GlobalWorkerOptions.workerSrc =
+        URL.createObjectURL(new Blob([text], { type: 'text/javascript' }));
+    } catch {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = WORKER_URL;
+    }
+  }
+  const workerReady = initWorker();
+
+  /* ---------- file input ---------- */
+  $('pick').onclick = () => $('file').click();
+  $('file').onchange = e => e.target.files[0] && openFile(e.target.files[0]);
+  const drop = $('drop');
+  ['dragenter', 'dragover'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.remove('over'); }));
+  drop.addEventListener('drop', e => e.dataTransfer.files[0] && openFile(e.dataTransfer.files[0]));
+  $('another').onclick = () => {
+    viewer.style.display = 'none'; home.style.display = 'flex';
+    $('file').value = ''; loadingEl.style.display = 'none';
+  };
+  $('full').onclick = () => {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else document.documentElement.requestFullscreen?.();
+  };
+
+  async function openFile(file) {
+    errorEl.textContent = '';
+    if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+      errorEl.textContent = 'That file is not a PDF. Choose a file that ends in .pdf.';
+      return;
+    }
+    loadingEl.style.display = 'block';
+    loadingEl.textContent = 'Opening ' + file.name + '...';
+    try {
+      await workerReady;
+      const data = await file.arrayBuffer();
+      pdf = await pdfjsLib.getDocument({ data }).promise;
+      N = pdf.numPages;
+      const first = await pdf.getPage(1);
+      const vp = first.getViewport({ scale: 1 });
+      ratio = vp.width / vp.height;
+      $('title').textContent = file.name + ' (' + N + (N === 1 ? ' page)' : ' pages)');
+      buildBook();
+      home.style.display = 'none';
+      viewer.style.display = 'flex';
+      layout();
+      update();
+    } catch (err) {
+      console.error(err);
+      errorEl.textContent = err && err.name === 'PasswordException'
+        ? 'This PDF is password protected. Remove the password and try again.'
+        : 'Could not read this PDF. Try a different file.';
+    } finally {
+      loadingEl.style.display = 'none';
+    }
+  }
+
+  /* ---------- build the book ---------- */
+  function makeFace(cls, pageNo) {
+    const d = document.createElement('div');
+    d.className = 'face ' + cls;
+    if (pageNo > N) d.classList.add('blank');
+    else { d.dataset.page = pageNo; d.classList.add('pending'); }
+    return d;
+  }
+
+  function buildBook() {
+    sheets.forEach(s => s.remove());
+    sheets = []; f = 0;
+    S = Math.ceil(N / 2);
+    for (let k = 0; k < S; k++) {
+      const s = document.createElement('div');
+      s.className = 'sheet';
+      s.append(makeFace('front', 2 * k + 1), makeFace('back', 2 * k + 2));
+      book.insertBefore(s, $('zl'));
+      sheets.push(s);
+    }
+    $('slider').max = S;
+  }
+
+  /* ---------- sizing ---------- */
+  function layout() {
+    const stageH = window.innerHeight - 130;
+    const stageW = Math.min(window.innerWidth - 40, 1500);
+    const pw = Math.max(120, Math.min(stageW / 2, stageH * ratio));
+    book.style.setProperty('--pw', pw + 'px');
+    book.style.setProperty('--ph', (pw / ratio) + 'px');
+    book.dataset.pw = pw;
+    shift();
+  }
+  function shift() {
+    const pw = +book.dataset.pw || 0;
+    const x = f === 0 ? -pw / 2 : f === S ? pw / 2 : 0;
+    book.style.transform = `translateX(${x}px)`;
+  }
+  window.addEventListener('resize', layout);
+
+  /* ---------- rendering (lazy, only pages near the reader) ---------- */
+  const rendering = new Set();
+  async function renderFace(face) {
+    const n = +face.dataset.page;
+    if (!n || !face.classList.contains('pending') || rendering.has(n)) return;
+    rendering.add(n);
+    try {
+      const page = await pdf.getPage(n);
+      const base = page.getViewport({ scale: 1 });
+      const vp = page.getViewport({ scale: RENDER_HEIGHT / base.height });
+      const c = document.createElement('canvas');
+      c.width = vp.width; c.height = vp.height;
+      await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+      face.append(c);
+      face.classList.remove('pending');
+    } catch (e) { console.error('Page ' + n + ' failed', e); }
+    rendering.delete(n);
+  }
+  function renderNear() {
+    for (let k = f - 3; k <= f + 2; k++) {
+      if (k < 0 || k >= S) continue;
+      sheets[k].querySelectorAll('.face').forEach(renderFace);
+    }
+  }
+
+  /* ---------- state ---------- */
+  function applyZ() {
+    sheets.forEach((s, k) => { s.style.zIndex = k < f ? k : S - k; });
+  }
+  function update() {
+    sheets.forEach((s, k) => s.classList.toggle('flipped', k < f));
+    applyZ();
+    shift();
+    renderNear();
+
+    let text;
+    if (f === 0) text = 'Cover';
+    else if (f === S && N % 2 === 1) text = 'Page ' + N;
+    else if (f === S) text = 'Page ' + N;
+    else text = 'Pages ' + (2 * f) + '-' + Math.min(2 * f + 1, N);
+    $('label').textContent = text;
+    $('slider').value = f;
+    $('prev').disabled = $('zl').disabled = f === 0;
+    $('next').disabled = $('zr').disabled = f === S;
+  }
+
+  function go(dir) {
+    const target = f + dir;
+    if (target < 0 || target > S) return;
+    const moving = dir > 0 ? f : f - 1;
+    f = target;
+    sheets[moving].style.zIndex = S + 5;   // keep the turning sheet on top
+    update();
+    sheets[moving].style.zIndex = S + 5;
+    setTimeout(applyZ, FLIP_MS + 50);
+  }
+  function goTo(t) {
+    t = Math.max(0, Math.min(S, t));
+    f = t; update();
+  }
+
+  $('next').onclick = $('zr').onclick = () => go(1);
+  $('prev').onclick = $('zl').onclick = () => go(-1);
+  $('slider').oninput = e => goTo(+e.target.value);
+  document.addEventListener('keydown', e => {
+    if (viewer.style.display !== 'flex') return;
+    if (e.key === 'ArrowRight' || e.key === 'PageDown') go(1);
+    if (e.key === 'ArrowLeft' || e.key === 'PageUp') go(-1);
+    if (e.key === 'Home') goTo(0);
+    if (e.key === 'End') goTo(S);
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,5 +1,143 @@
-<!DOCTYPE html> 
-<html> 
-<body> 
-<form action="upload.php" method="post" enctype="multipart/form-data"> 
-Select file to upload: <input type="file" name="fileToUpload" id="fileToUpload"> <input type="submit" value="Upload File" name="submit"> </form> </body> </html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PDF to text</title>
+<style>
+  :root { --ink:#1d2a2e; --paper:#f7f9f8; --accent:#0f6b5c; --line:#cfd9d6; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:16px/1.5 system-ui, sans-serif; color:var(--ink); background:var(--paper); }
+  main { max-width:760px; margin:0 auto; padding:24px 16px 48px; }
+  h1 { font-size:1.5rem; margin:0 0 4px; }
+  p.sub { margin:0 0 20px; color:#4d5f63; }
+  .drop { border:2px dashed var(--line); border-radius:10px; padding:28px 16px; text-align:center; background:#fff; }
+  .drop input { margin-top:8px; max-width:100%; }
+  label.opt { display:flex; gap:8px; align-items:center; margin:14px 0; }
+  select, button { font:inherit; padding:8px 12px; border-radius:8px; border:1px solid var(--line); background:#fff; }
+  button.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+  button:focus-visible, select:focus-visible, input:focus-visible { outline:3px solid #7fc8b9; outline-offset:2px; }
+  #status { margin:14px 0; min-height:1.5em; color:#4d5f63; }
+  progress { width:100%; height:8px; }
+  textarea { width:100%; height:340px; font:13px/1.4 ui-monospace, Menlo, monospace; padding:10px; border:1px solid var(--line); border-radius:8px; white-space:pre; }
+  .row { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>PDF to text</h1>
+  <p class="sub">Reads the text layer first. If a page has none (a scan), it falls back to Tesseract OCR. Everything runs in your browser.</p>
+
+  <div class="drop">
+    <div>Choose a PDF</div>
+    <input type="file" id="file" accept="application/pdf">
+  </div>
+
+  <label class="opt">
+    Mode
+    <select id="mode">
+      <option value="auto">Auto (text layer, OCR if empty)</option>
+      <option value="ocr">Always OCR</option>
+    </select>
+  </label>
+
+  <progress id="bar" value="0" max="1" hidden></progress>
+  <div id="status" role="status"></div>
+
+  <textarea id="out" placeholder="Extracted text appears here" readonly></textarea>
+  <div class="row">
+    <button class="primary" id="copy">Copy text</button>
+    <button id="txt">Download .txt</button>
+    <button id="csv">Download .csv</button>
+  </div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+const $ = id => document.getElementById(id);
+let rows = [];          // array of arrays (cells) for CSV
+let baseName = 'output';
+
+// Group text items into lines by Y position, order cells by X.
+function pageToRows(items) {
+  const lines = [];
+  for (const it of items) {
+    if (!it.str.trim()) continue;
+    const y = it.transform[5], x = it.transform[4];
+    let line = lines.find(l => Math.abs(l.y - y) < 3);
+    if (!line) { line = { y, cells: [] }; lines.push(line); }
+    line.cells.push({ x, s: it.str.trim() });
+  }
+  lines.sort((a, b) => b.y - a.y);
+  return lines.map(l => l.cells.sort((a, b) => a.x - b.x).map(c => c.s));
+}
+
+async function ocrPage(page, worker) {
+  const viewport = page.getViewport({ scale: 2.5 });
+  const canvas = document.createElement('canvas');
+  canvas.width = viewport.width; canvas.height = viewport.height;
+  await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+  const { data } = await worker.recognize(canvas);
+  return data.text.split('\n').filter(t => t.trim()).map(t => t.trim().split(/\s{2,}/));
+}
+
+async function run(file) {
+  rows = []; $('out').value = '';
+  baseName = file.name.replace(/\.pdf$/i, '');
+  $('bar').hidden = false; $('bar').value = 0;
+  try {
+    const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
+    let worker = null;
+    const forceOcr = $('mode').value === 'ocr';
+
+    for (let p = 1; p <= pdf.numPages; p++) {
+      $('status').textContent = `Reading page ${p} of ${pdf.numPages}…`;
+      const page = await pdf.getPage(p);
+      let pageRows = [];
+
+      if (!forceOcr) {
+        const tc = await page.getTextContent();
+        pageRows = pageToRows(tc.items);
+      }
+      if (pageRows.length === 0) {
+        $('status').textContent = `OCR on page ${p} of ${pdf.numPages}…`;
+        if (!worker) worker = await Tesseract.createWorker('eng');
+        pageRows = await ocrPage(page, worker);
+      }
+      rows.push(...pageRows);
+      $('out').value = rows.map(r => r.join('\t')).join('\n');
+      $('bar').value = p / pdf.numPages;
+    }
+    if (worker) await worker.terminate();
+    $('status').textContent = `Done. ${rows.length} lines from ${pdf.numPages} page(s).`;
+  } catch (e) {
+    console.error(e);
+    $('status').textContent = 'Could not read this file: ' + e.message;
+  }
+  $('bar').hidden = true;
+}
+
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type }));
+  a.download = name; a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+$('file').addEventListener('change', e => { if (e.target.files[0]) run(e.target.files[0]); });
+$('copy').onclick = async () => {
+  await navigator.clipboard.writeText($('out').value);
+  $('status').textContent = 'Copied to clipboard.';
+};
+$('txt').onclick = () => download(baseName + '.txt', $('out').value, 'text/plain');
+$('csv').onclick = () => {
+  const esc = s => '"' + s.replace(/"/g, '""') + '"';
+  download(baseName + '.csv', rows.map(r => r.map(esc).join(',')).join('\n'), 'text/csv');
+};
+</script>
+</body>
+</html>

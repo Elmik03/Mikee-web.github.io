@@ -1,0 +1,467 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#2a1346">
+<title>Trivia Run</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Unbounded:wght@500;700;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #2a1346; --panel: #3a1d5e; --panel2: #4b2a7a; --hover: #5a3592;
+  --ink: #fff7ea; --muted: #cdbbea; --amber: #ffb938; --mint: #3ddc97; --coral: #ff6b6b;
+  --line: rgba(255,255,255,.16); --focus: #ffe08a;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0; min-height: 100vh; background: var(--bg); color: var(--ink);
+  font-family: 'Figtree', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; line-height: 1.45;
+}
+.app { max-width: 560px; margin: 0 auto; padding: max(1.1rem, env(safe-area-inset-top)) 1.1rem max(2rem, env(safe-area-inset-bottom)); }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+button, select { font: inherit; color: inherit; }
+h1, h2, h3 { margin: 0; }
+
+.display { font-family: 'Unbounded', 'Figtree', system-ui, sans-serif; }
+.logo { font-family: 'Unbounded', system-ui, sans-serif; font-weight: 900; font-size: clamp(2.3rem, 11vw, 3.4rem); line-height: 1; letter-spacing: -.02em; margin: 1.6rem 0 .7rem; }
+.lede { color: var(--muted); margin: 0 0 1.4rem; font-size: 1.05rem; }
+
+.panel { background: var(--panel); border-radius: 20px; padding: 1.1rem; border: 1px solid var(--line); }
+fieldset { border: 0; margin: 0 0 1.15rem; padding: 0; min-width: 0; }
+.lbl, legend { display: block; font-weight: 700; font-size: .95rem; margin: 0 0 .45rem; padding: 0; }
+select { width: 100%; padding: .8rem .9rem; border-radius: 14px; border: 1px solid var(--line); background: var(--panel2); font-size: 1rem; margin-bottom: 1.15rem; }
+.seg { display: flex; gap: .4rem; flex-wrap: wrap; }
+.seg label { position: relative; flex: 1; min-width: 3.4rem; }
+.seg input { position: absolute; opacity: 0; pointer-events: none; }
+.seg span { display: block; text-align: center; padding: .65rem .4rem; border-radius: 14px; background: var(--panel2); font-weight: 600; cursor: pointer; }
+.seg input:checked + span { background: var(--amber); color: #2a1346; }
+.seg input:focus-visible + span { outline: 2px solid var(--focus); outline-offset: 2px; }
+.check { display: flex; gap: .65rem; align-items: center; cursor: pointer; }
+.check input { width: 1.2rem; height: 1.2rem; accent-color: var(--amber); }
+
+.btn { border: 0; border-radius: 16px; padding: .9rem 1.3rem; font-weight: 700; font-size: 1rem; cursor: pointer; background: var(--panel2); }
+.btn:hover { background: var(--hover); }
+.btn.primary { background: var(--amber); color: #2a1346; }
+.btn.primary:hover { filter: brightness(1.07); }
+.btn.block { width: 100%; padding: 1.05rem; font-size: 1.1rem; margin-top: 1.1rem; }
+.best { color: var(--muted); margin: .9rem 0 0; text-align: center; min-height: 1.4em; }
+.msg { margin: 1rem 0 0; padding: .8rem 1rem; border-radius: 14px; background: rgba(255,107,107,.16); border: 1px solid rgba(255,107,107,.6); }
+.msg p { margin: 0 0 .7rem; }
+.msg .btn { padding: .6rem 1rem; }
+
+.loading { text-align: center; padding: 5rem 0; }
+.spinner { width: 3rem; height: 3rem; margin: 0 auto 1rem; border-radius: 50%; border: 5px solid rgba(255,255,255,.16); border-top-color: var(--amber); animation: spin .9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.hud { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-top: .6rem; }
+.prog { flex: 1; }
+.prog span { font-weight: 600; color: var(--muted); }
+.meter { height: 6px; border-radius: 99px; background: rgba(255,255,255,.14); margin-top: .5rem; overflow: hidden; }
+.meter i { display: block; height: 100%; width: 0; background: var(--amber); border-radius: 99px; transition: width .3s; }
+.stat { text-align: right; line-height: 1.2; }
+.stat strong { font-family: 'Unbounded', system-ui, sans-serif; font-size: 1.5rem; font-weight: 700; }
+.streak { display: block; color: var(--amber); font-weight: 700; font-size: .9rem; }
+
+.card { margin-top: 1.2rem; background: var(--panel); border-radius: 20px; padding: 1.1rem; border: 1px solid var(--line); outline: none; }
+.qhead { display: flex; justify-content: space-between; align-items: center; gap: 1rem; min-height: 3.6rem; }
+.catlabel { color: var(--muted); font-size: .95rem; margin: 0; }
+.ring { position: relative; width: 3.6rem; height: 3.6rem; flex: none; }
+.ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.ring circle { fill: none; stroke-width: 5; }
+.ring .trk { stroke: rgba(255,255,255,.16); }
+.ring .prg { stroke: var(--amber); stroke-linecap: round; }
+.ring.low .prg { stroke: var(--coral); }
+.ring span { position: absolute; inset: 0; display: grid; place-items: center; font-family: 'Unbounded', system-ui, sans-serif; font-weight: 700; font-size: 1rem; }
+.question { margin: .6rem 0 0; font-size: 1.35rem; font-weight: 700; line-height: 1.3; }
+
+.answers { display: grid; gap: .6rem; margin-top: 1rem; }
+.ans {
+  display: flex; align-items: center; gap: .8rem; text-align: left; width: 100%;
+  padding: .9rem 1rem; border-radius: 16px; border: 0; background: var(--panel2);
+  font-size: 1.05rem; font-weight: 600; cursor: pointer;
+  transition: background .15s, color .15s, opacity .15s;
+}
+.ans:hover { background: var(--hover); }
+.ans .key { flex: none; width: 1.8rem; height: 1.8rem; border-radius: 50%; display: grid; place-items: center; background: rgba(255,255,255,.14); font-size: .9rem; font-weight: 700; }
+.ans .txt { flex: 1; }
+.ans .mark { flex: none; width: 1.4rem; height: 1.4rem; }
+.ans.locked { cursor: default; pointer-events: none; }
+.ans.right { background: var(--mint); color: #0d2a1d; }
+.ans.wrong { background: var(--coral); color: #3b0c0c; }
+.ans.dim { opacity: .45; }
+.ans.right .key, .ans.wrong .key { background: rgba(0,0,0,.14); }
+.feedback { min-height: 1.6rem; margin: 1rem 0 0; font-weight: 700; font-size: 1.05rem; }
+.feedback.good { color: var(--mint); }
+.feedback.bad { color: var(--coral); }
+#next { margin-top: .8rem; width: 100%; padding: 1rem; font-size: 1.05rem; }
+
+.result h2 { font-size: 1.1rem; font-weight: 600; color: var(--muted); margin-top: 1.5rem; }
+.bigscore { font-family: 'Unbounded', system-ui, sans-serif; font-weight: 900; font-size: clamp(4rem, 23vw, 6.8rem); line-height: 1; color: var(--amber); margin: .5rem 0 0; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.pts { color: var(--muted); font-weight: 600; margin: .2rem 0 1rem; }
+.verdict { font-family: 'Unbounded', system-ui, sans-serif; font-weight: 700; font-size: 1.3rem; margin: 0 0 .3rem; }
+.summary, .bestmsg { margin: .2rem 0; color: var(--muted); }
+.actions { display: flex; gap: .6rem; flex-wrap: wrap; margin: 1.3rem 0; }
+.actions .btn { flex: 1; min-width: 9rem; }
+.review h3 { font-size: 1.05rem; margin-bottom: .6rem; }
+.review ol { margin: 0; padding: 0; list-style: none; display: grid; gap: .9rem; }
+.review li { padding-top: .9rem; border-top: 1px solid var(--line); }
+.review li:first-child { padding-top: 0; border-top: 0; }
+.review p { margin: 0; }
+.rq { font-weight: 700; }
+.ra { color: var(--coral); margin-top: .2rem !important; }
+.rc { color: var(--mint); }
+
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } .spinner { border-top-color: var(--amber); } }
+</style>
+</head>
+<body>
+<main class="app">
+
+  <section id="setup">
+    <h1 class="logo">Trivia Run</h1>
+    <p class="lede">Ten questions, twenty seconds each. Faster answers and longer streaks score more.</p>
+
+    <div class="panel">
+      <label class="lbl" for="cat">Category</label>
+      <select id="cat"></select>
+
+      <fieldset>
+        <legend>Difficulty</legend>
+        <div class="seg">
+          <label><input type="radio" name="diff" value="" checked><span>Any</span></label>
+          <label><input type="radio" name="diff" value="easy"><span>Easy</span></label>
+          <label><input type="radio" name="diff" value="medium"><span>Medium</span></label>
+          <label><input type="radio" name="diff" value="hard"><span>Hard</span></label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Number of questions</legend>
+        <div class="seg">
+          <label><input type="radio" name="amount" value="5"><span>5</span></label>
+          <label><input type="radio" name="amount" value="10" checked><span>10</span></label>
+          <label><input type="radio" name="amount" value="15"><span>15</span></label>
+          <label><input type="radio" name="amount" value="20"><span>20</span></label>
+        </div>
+      </fieldset>
+
+      <label class="check"><input type="checkbox" id="timer" checked> Countdown timer, 20 seconds per question</label>
+    </div>
+
+    <button class="btn primary block" id="start" type="button">Start quiz</button>
+    <p class="best" id="best"></p>
+    <div id="setupMsg" class="msg" role="alert" hidden></div>
+  </section>
+
+  <section id="loading" class="loading" hidden>
+    <div class="spinner" aria-hidden="true"></div>
+    <p role="status">Fetching questions…</p>
+  </section>
+
+  <section id="play" hidden>
+    <header class="hud">
+      <div class="prog">
+        <span id="qn">Question 1 of 10</span>
+        <div class="meter" aria-hidden="true"><i id="bar"></i></div>
+      </div>
+      <div class="stat"><strong id="score">0</strong> pts<span class="streak" id="streak" hidden></span></div>
+    </header>
+
+    <div class="card" id="card" tabindex="-1">
+      <div class="qhead">
+        <p class="catlabel" id="catLabel"></p>
+        <div class="ring" id="ring" role="timer" aria-label="Time left">
+          <svg viewBox="0 0 64 64" aria-hidden="true"><circle class="trk" cx="32" cy="32" r="28"/><circle class="prg" id="prg" cx="32" cy="32" r="28"/></svg>
+          <span id="secs">20</span>
+        </div>
+      </div>
+      <h2 class="question" id="question"></h2>
+    </div>
+
+    <div class="answers" id="answers" role="group" aria-labelledby="question"></div>
+    <p class="feedback" id="feedback" role="status"></p>
+    <button class="btn primary" id="next" type="button" hidden>Next question</button>
+  </section>
+
+  <section id="result" class="result" hidden>
+    <h2 id="rh" tabindex="-1">Round complete</h2>
+    <p class="bigscore" id="finalScore">0</p>
+    <p class="pts">points</p>
+    <p class="verdict" id="verdict"></p>
+    <p class="summary" id="summary"></p>
+    <p class="bestmsg" id="bestMsg"></p>
+    <div class="actions">
+      <button class="btn primary" id="again" type="button">Play again</button>
+      <button class="btn" id="menu" type="button">Change settings</button>
+    </div>
+    <section class="panel review" id="review" hidden>
+      <h3>Questions to revisit</h3>
+      <ol id="missList"></ol>
+    </section>
+  </section>
+
+</main>
+
+<script>
+(function () {
+  'use strict';
+  const $ = s => document.querySelector(s);
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  };
+  const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const LIMIT = 20, CIRC = 2 * Math.PI * 28;
+  const fmt = n => n.toLocaleString();
+  const decode = s => new DOMParser().parseFromString(String(s), 'text/html').documentElement.textContent;
+  const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+
+  const FALLBACK_CATS = [
+    { id: 9, name: 'General Knowledge' }, { id: 17, name: 'Science & Nature' }, { id: 18, name: 'Science: Computers' },
+    { id: 19, name: 'Science: Mathematics' }, { id: 21, name: 'Sports' }, { id: 22, name: 'Geography' },
+    { id: 23, name: 'History' }, { id: 25, name: 'Art' }, { id: 27, name: 'Animals' }
+  ];
+  const OFFLINE = [
+    ['Geography', 'What is the capital of Australia?', 'Canberra', ['Sydney', 'Melbourne', 'Perth']],
+    ['Science', 'Which planet is known as the Red Planet?', 'Mars', ['Venus', 'Jupiter', 'Mercury']],
+    ['Science', 'How many bones are in the adult human body?', '206', ['196', '212', '256']],
+    ['Art', 'Who painted the Mona Lisa?', 'Leonardo da Vinci', ['Michelangelo', 'Raphael', 'Donatello']],
+    ['Science', 'What is the chemical symbol for gold?', 'Au', ['Ag', 'Gd', 'Go']],
+    ['Geography', 'Which ocean is the largest?', 'Pacific', ['Atlantic', 'Indian', 'Arctic']],
+    ['History', 'In which year did humans first land on the Moon?', '1969', ['1965', '1972', '1961']],
+    ['Mathematics', 'What is the smallest prime number?', '2', ['0', '1', '3']],
+    ['General Knowledge', 'Which language has the most native speakers?', 'Mandarin Chinese', ['English', 'Spanish', 'Hindi']],
+    ['Science', 'What is the hardest natural substance?', 'Diamond', ['Quartz', 'Steel', 'Topaz']],
+    ['History', 'Which country gave the Statue of Liberty to the United States?', 'France', ['Spain', 'Italy', 'Britain']],
+    ['Geography', 'How many continents are there?', '7', ['5', '6', '8']],
+    ['Science', 'Which gas do plants absorb from the air?', 'Carbon dioxide', ['Oxygen', 'Nitrogen', 'Helium']],
+    ['Literature', 'Who wrote Romeo and Juliet?', 'William Shakespeare', ['Charles Dickens', 'Jane Austen', 'Mark Twain']],
+    ['Animals', 'What is the largest mammal on Earth?', 'Blue whale', ['African elephant', 'Giraffe', 'Hippopotamus']]
+  ];
+  const MSG = {
+    net: 'Couldn’t reach the question service. Check your connection, or play with the built-in questions.',
+    rate: 'The question service needs a few seconds between rounds. Wait a moment and start again, or play with the built-in questions.',
+    few: 'There aren’t enough questions for that mix. Try fewer questions, another difficulty or a different category.'
+  };
+
+  /* ---------- screens + settings ---------- */
+  const screens = ['setup', 'loading', 'play', 'result'];
+  function show(name) { screens.forEach(n => { $('#' + n).hidden = n !== name; }); window.scrollTo(0, 0); }
+
+  function fillCats(list) {
+    const sel = $('#cat'), keep = sel.value;
+    sel.innerHTML = '<option value="">Any category</option>' + list.map(c => '<option value="' + c.id + '">' + esc(c.name) + '</option>').join('');
+    sel.value = keep || settings.cat || '';
+  }
+  const checked = name => document.querySelector('input[name="' + name + '"]:checked').value;
+  const readSettings = () => ({ cat: $('#cat').value, diff: checked('diff'), amount: Number(checked('amount')), timer: $('#timer').checked });
+
+  let settings = Object.assign({ cat: '', diff: '', amount: 10, timer: true }, store.get('quiz:settings', {}));
+  let S = null;
+
+  document.querySelector('input[name="diff"][value="' + settings.diff + '"]').checked = true;
+  const amt = document.querySelector('input[name="amount"][value="' + settings.amount + '"]');
+  if (amt) amt.checked = true;
+  $('#timer').checked = !!settings.timer;
+  fillCats(FALLBACK_CATS);
+  fetch('https://opentdb.com/api_category.php').then(r => r.json()).then(j => { if (j.trivia_categories) fillCats(j.trivia_categories); }).catch(() => {});
+
+  function showBest() {
+    const n = readSettings().amount, b = store.get('quiz:best:' + n, 0);
+    $('#best').textContent = b ? 'Your best for ' + n + ' questions: ' + fmt(b) + ' points.' : '';
+  }
+  document.querySelectorAll('input[name="amount"]').forEach(r => r.addEventListener('change', showBest));
+  showBest();
+
+  /* ---------- fetching ---------- */
+  async function fetchQuestions(s) {
+    const p = new URLSearchParams({ amount: s.amount, type: 'multiple' });
+    if (s.cat) p.set('category', s.cat);
+    if (s.diff) p.set('difficulty', s.diff);
+    const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 12000);
+    let r;
+    try { r = await fetch('https://opentdb.com/api.php?' + p.toString(), { signal: ctl.signal }); }
+    catch (e) { throw { kind: 'net' }; }
+    finally { clearTimeout(t); }
+    if (r.status === 429) throw { kind: 'rate' };
+    if (!r.ok) throw { kind: 'net' };
+    const j = await r.json();
+    if (j.response_code === 5) throw { kind: 'rate' };
+    if (j.response_code !== 0 || !j.results || !j.results.length) throw { kind: 'few' };
+    return j.results.map(x => ({
+      q: decode(x.question), correct: decode(x.correct_answer), incorrect: x.incorrect_answers.map(decode),
+      category: decode(x.category), difficulty: x.difficulty
+    }));
+  }
+  function offlineSet(n) {
+    return shuffle(OFFLINE.slice()).slice(0, Math.min(n, OFFLINE.length)).map(x => ({ q: x[1], correct: x[2], incorrect: x[3], category: x[0], difficulty: '' }));
+  }
+  function setupError(kind) {
+    const box = $('#setupMsg');
+    box.innerHTML = '<p>' + esc(MSG[kind] || MSG.net) + '</p>' + (kind === 'few' ? '' : '<button type="button" class="btn" data-act="offline">Play built-in questions</button>');
+    box.hidden = false;
+  }
+  async function start(useOffline) {
+    settings = readSettings(); store.set('quiz:settings', settings);
+    $('#setupMsg').hidden = true;
+    show('loading');
+    try {
+      if (useOffline) begin(offlineSet(settings.amount), true);
+      else begin(await fetchQuestions(settings), false);
+    } catch (err) {
+      show('setup'); setupError(err && err.kind);
+    }
+  }
+
+  /* ---------- round ---------- */
+  function begin(qs, offline) {
+    S = { qs, i: 0, score: 0, streak: 0, best: 0, correct: 0, log: [], answered: false, shown: [], offline, timer: settings.timer, raf: 0, deadline: 0, pausedAt: 0 };
+    $('#score').textContent = '0'; $('#streak').hidden = true;
+    $('#prg').style.strokeDasharray = CIRC;
+    show('play'); render();
+  }
+
+  function render() {
+    const q = S.qs[S.i];
+    S.answered = false;
+    S.shown = shuffle([q.correct].concat(q.incorrect));
+    $('#qn').textContent = 'Question ' + (S.i + 1) + ' of ' + S.qs.length;
+    $('#bar').style.width = (S.i / S.qs.length * 100) + '%';
+    $('#catLabel').textContent = S.offline ? 'Built-in questions' : [q.category, q.difficulty].filter(Boolean).join(', ');
+    $('#question').textContent = q.q;
+    const box = $('#answers'); box.innerHTML = '';
+    S.shown.forEach((txt, i) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'ans'; b.dataset.i = i;
+      b.innerHTML = '<span class="key" aria-hidden="true">' + (i + 1) + '</span><span class="txt"></span><span class="mark" aria-hidden="true"></span>';
+      b.querySelector('.txt').textContent = txt;
+      box.appendChild(b);
+    });
+    const fb = $('#feedback'); fb.textContent = ''; fb.className = 'feedback';
+    $('#next').hidden = true;
+    startTimer();
+    $('#card').focus({ preventScroll: true });
+  }
+
+  /* timer */
+  function setRing(left) {
+    const l = Math.max(0, left);
+    $('#prg').style.strokeDashoffset = CIRC * (1 - l / (LIMIT * 1000));
+    $('#secs').textContent = Math.ceil(l / 1000);
+    $('#ring').classList.toggle('low', l <= 5000);
+  }
+  function tick() {
+    if (!S || S.answered || !S.timer) return;
+    const left = S.deadline - performance.now();
+    setRing(left);
+    if (left <= 0) { reveal(-1, 0); return; }
+    S.raf = requestAnimationFrame(tick);
+  }
+  function startTimer() {
+    cancelAnimationFrame(S.raf);
+    $('#ring').hidden = !S.timer;
+    if (!S.timer) return;
+    S.deadline = performance.now() + LIMIT * 1000;
+    setRing(LIMIT * 1000); tick();
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (!S || !S.timer || S.answered || $('#play').hidden) return;
+    if (document.hidden) { S.pausedAt = performance.now(); cancelAnimationFrame(S.raf); }
+    else if (S.pausedAt) { S.deadline += performance.now() - S.pausedAt; S.pausedAt = 0; tick(); }
+  });
+
+  /* answering */
+  const CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+  const CROSS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+
+  function pick(i) {
+    if (!S || S.answered) return;
+    const left = S.timer ? S.deadline - performance.now() : 0;
+    if (S.timer && left <= 0) { reveal(-1, 0); return; }
+    reveal(i, left);
+  }
+  function reveal(i, left) {
+    if (S.answered) return;
+    S.answered = true; cancelAnimationFrame(S.raf);
+    const q = S.qs[S.i], picked = i >= 0 ? S.shown[i] : null, ok = picked === q.correct;
+    let msg;
+    if (ok) {
+      const speed = S.timer ? Math.round(50 * left / (LIMIT * 1000)) : 0;
+      const pts = 100 + speed + Math.min(S.streak, 5) * 10;
+      S.score += pts; S.streak++; S.best = Math.max(S.best, S.streak); S.correct++;
+      msg = 'Correct! +' + pts + ' points';
+    } else {
+      S.streak = 0;
+      msg = (picked === null ? 'Time’s up. ' : 'Not quite. ') + 'The answer is ' + q.correct + '.';
+    }
+    S.log.push({ q: q.q, correct: q.correct, picked, ok });
+
+    $('#score').textContent = fmt(S.score);
+    const st = $('#streak'); st.hidden = S.streak < 2; st.textContent = 'Streak of ' + S.streak;
+    $('#bar').style.width = ((S.i + 1) / S.qs.length * 100) + '%';
+    document.querySelectorAll('.ans').forEach((b, k) => {
+      b.classList.add('locked');
+      const txt = S.shown[k];
+      if (txt === q.correct) { b.classList.add('right'); b.querySelector('.mark').innerHTML = CHECK; }
+      else if (k === i) { b.classList.add('wrong'); b.querySelector('.mark').innerHTML = CROSS; }
+      else b.classList.add('dim');
+    });
+    const fb = $('#feedback'); fb.textContent = msg; fb.className = 'feedback ' + (ok ? 'good' : 'bad');
+    const nx = $('#next'); nx.hidden = false;
+    nx.textContent = S.i === S.qs.length - 1 ? 'See results' : 'Next question';
+    nx.focus({ preventScroll: false });
+  }
+  function next() {
+    if (!S || !S.answered) return;
+    S.i++;
+    if (S.i >= S.qs.length) finish(); else render();
+  }
+
+  /* results */
+  function countUp(el, to) {
+    if (reduce || to === 0) { el.textContent = fmt(to); return; }
+    const t0 = performance.now(), dur = 1000;
+    requestAnimationFrame(function f(t) {
+      const p = Math.min((t - t0) / dur, 1), e = 1 - Math.pow(1 - p, 3);
+      el.textContent = fmt(Math.round(to * e));
+      if (p < 1) requestAnimationFrame(f);
+    });
+  }
+  function finish() {
+    const n = S.qs.length, key = 'quiz:best:' + n, prev = store.get(key, 0), isBest = S.score > prev;
+    if (isBest) store.set(key, S.score);
+    show('result');
+    $('#finalScore').textContent = '0'; countUp($('#finalScore'), S.score);
+    const pct = S.correct / n;
+    $('#verdict').textContent = pct === 1 ? 'Perfect round.' : pct >= 0.8 ? 'Great run.' : pct >= 0.5 ? 'Good effort.' : 'Tough round. Another go?';
+    $('#summary').textContent = S.correct + ' of ' + n + ' correct. Longest streak: ' + S.best + '.';
+    $('#bestMsg').textContent = isBest && S.score > 0 ? 'New best score for ' + n + ' questions!' : (prev ? 'Best for ' + n + ' questions: ' + fmt(prev) + ' points.' : '');
+    const miss = S.log.filter(x => !x.ok);
+    $('#review').hidden = !miss.length;
+    $('#missList').innerHTML = miss.map(x =>
+      '<li><p class="rq">' + esc(x.q) + '</p><p class="ra">' + (x.picked === null ? 'No answer. Time ran out.' : 'You answered: ' + esc(x.picked)) + '</p><p class="rc">Correct answer: ' + esc(x.correct) + '</p></li>'
+    ).join('');
+    $('#rh').focus({ preventScroll: true });
+    showBest();
+  }
+
+  /* ---------- events ---------- */
+  $('#start').addEventListener('click', () => start(false));
+  $('#again').addEventListener('click', () => start(S && S.offline));
+  $('#menu').addEventListener('click', () => { show('setup'); showBest(); });
+  $('#next').addEventListener('click', next);
+  $('#setupMsg').addEventListener('click', e => { if (e.target.closest('[data-act="offline"]')) start(true); });
+  $('#answers').addEventListener('click', e => { const b = e.target.closest('.ans'); if (b) pick(Number(b.dataset.i)); });
+  document.addEventListener('keydown', e => {
+    if ($('#play').hidden || !S || S.answered) return;
+    if (/^[1-4]$/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey) { pick(Number(e.key) - 1); }
+  });
+})();
+</script>
+</body>
+</html>

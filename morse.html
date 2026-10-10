@@ -1,0 +1,501 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1c3f94">
+<title>Morse</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --blue: #1c3f94; --deep: #10286b; --red: #d62f2f; --yellow: #ffd24a;
+  --ink: #101820; --bg: #eef2f7; --card: #ffffff; --line: #d3dbe7; --muted: #4f5f7a; --focus: #e6a800;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0; min-height: 100vh; background: var(--bg); color: var(--ink);
+  font-family: 'Archivo', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; line-height: 1.4;
+}
+.app { max-width: 640px; margin: 0 auto; padding: max(1rem, env(safe-area-inset-top)) 1rem max(2rem, env(safe-area-inset-bottom)); }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+button, textarea { font: inherit; color: inherit; }
+h1, h2 { margin: 0; }
+
+.head { display: flex; align-items: center; justify-content: space-between; padding: .3rem .2rem 1rem; }
+.head h1 { font-size: 2rem; font-weight: 850; font-stretch: 125%; font-variation-settings: 'wdth' 125; letter-spacing: -.01em; color: var(--blue); }
+.sos { display: flex; gap: .22rem; align-items: center; }
+.dot { display: inline-block; width: .6rem; height: .6rem; border-radius: 50%; background: currentColor; flex: none; }
+.dash { display: inline-block; width: 1.7rem; height: .6rem; border-radius: 99px; background: currentColor; flex: none; }
+.sos .dot, .sos .dash { color: var(--red); }
+.sos .dash { color: var(--blue); }
+.sos .gap { width: .45rem; }
+
+/* signal lamp */
+.signal { background: var(--blue); color: #fff; border-radius: 24px; padding: 1.3rem 1rem 1rem; display: flex; flex-direction: column; align-items: center; gap: .8rem; }
+.lamp {
+  width: 7.2rem; height: 7.2rem; border-radius: 50%; background: var(--deep);
+  border: 4px solid rgba(255,255,255,.3); display: grid; place-items: center;
+  font-size: 2.8rem; font-weight: 850; color: var(--ink); transition: background .03s, box-shadow .03s;
+}
+.lamp.on { background: var(--yellow); border-color: #fff; box-shadow: 0 0 0 8px rgba(255,210,74,.28), 0 0 60px 18px rgba(255,210,74,.55); }
+.lstat { margin: 0; font-size: .95rem; color: rgba(255,255,255,.85); }
+
+/* tabs */
+.tabs { display: flex; gap: .3rem; margin: 1rem 0; padding: .25rem; background: #dfe6f1; border-radius: 999px; }
+.tabs button { flex: 1; border: 0; background: none; padding: .6rem .5rem; border-radius: 999px; font-weight: 700; cursor: pointer; color: var(--muted); }
+.tabs button[aria-selected="true"] { background: var(--blue); color: #fff; }
+
+.panel { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 1.1rem; }
+.panel + .panel { margin-top: 1rem; }
+.lbl { display: block; font-weight: 700; margin: 1rem 0 .4rem; }
+.seg { display: flex; gap: .3rem; padding: .2rem; background: #e8edf5; border-radius: 14px; }
+.seg button { flex: 1; border: 0; background: none; padding: .55rem .4rem; border-radius: 11px; font-weight: 700; cursor: pointer; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: #fff; color: var(--blue); box-shadow: 0 1px 4px rgba(16,24,32,.18); }
+textarea {
+  width: 100%; min-height: 6.2rem; resize: vertical; padding: .8rem .9rem; font-size: 1.1rem;
+  border: 2px solid var(--line); border-radius: 14px; background: #fff;
+}
+textarea:focus { outline: none; border-color: var(--blue); }
+.hint { margin: .6rem 0 0; padding: .6rem .8rem; background: #fff4cf; border-radius: 12px; font-size: .95rem; }
+.note { margin: .6rem 0 0; color: var(--muted); font-size: .92rem; }
+.link { background: none; border: 0; padding: 0; margin-left: .4rem; color: var(--blue); font-weight: 700; text-decoration: underline; cursor: pointer; }
+
+.outhead { margin-top: 1.2rem; }
+.outhead h2 { font-size: 1.05rem; font-weight: 700; }
+.strip { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: .6rem; }
+.strip:empty { display: none; }
+.word { display: flex; flex-wrap: wrap; gap: .6rem .85rem; padding: .6rem .75rem; background: #f3f6fb; border: 1px solid var(--line); border-radius: 14px; }
+.ltr { display: flex; flex-direction: column; align-items: center; gap: .3rem; min-width: 1.1rem; color: var(--blue); }
+.sy { display: flex; gap: .22rem; align-items: center; height: .7rem; }
+.lc { font-weight: 800; font-size: 1.05rem; color: var(--ink); }
+.ltr.now { color: var(--red); }
+.ltr.now .lc { color: var(--red); }
+.empty { margin: .6rem 0 0; color: var(--muted); }
+.plain { margin: .8rem 0 0; padding: .7rem .8rem; background: #f3f6fb; border-radius: 12px; font-size: 1.15rem; font-weight: 600; word-break: break-word; white-space: pre-wrap; min-height: 2.8rem; letter-spacing: .02em; }
+.plain:empty { display: none; }
+
+.actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .9rem; }
+.btn { border: 2px solid var(--line); background: #fff; border-radius: 999px; padding: .65rem 1.1rem; font-weight: 700; cursor: pointer; }
+.btn:hover { border-color: var(--blue); }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn.play { background: var(--red); border-color: var(--red); color: #fff; flex: 1 1 100%; padding: .85rem; font-size: 1.05rem; }
+.btn.play:disabled { background: #c9a0a0; border-color: #c9a0a0; }
+
+/* tap key */
+.help { margin: 0 0 1rem; color: var(--muted); }
+.tapstage { min-height: 6rem; padding: .8rem; background: #f3f6fb; border-radius: 14px; }
+.tapcode { display: flex; gap: .25rem; align-items: center; height: .9rem; color: var(--red); }
+.taptext { margin: .6rem 0 0; font-size: 1.5rem; font-weight: 800; white-space: pre-wrap; word-break: break-word; min-height: 2rem; letter-spacing: .04em; }
+.taptext:empty::before { content: 'Decoded text shows up here'; font-size: 1rem; font-weight: 500; color: var(--muted); letter-spacing: 0; }
+.keywrap { display: grid; place-items: center; padding: 1.4rem 0 .4rem; }
+.key {
+  width: 10.5rem; height: 10.5rem; border-radius: 50%; border: 0; background: var(--red); color: #fff;
+  font-size: 1.3rem; font-weight: 800; cursor: pointer; box-shadow: 0 8px 0 #9b1f1f; transition: transform .05s, box-shadow .05s;
+  touch-action: manipulation; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+}
+.key.down { transform: translateY(6px); box-shadow: 0 2px 0 #9b1f1f; background: var(--yellow); color: var(--ink); }
+
+/* chart */
+.chart h2 { font-size: 1.05rem; margin: 1rem 0 .6rem; }
+.chart h2:first-child { margin-top: 0; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(4.6rem, 1fr)); gap: .5rem; }
+.tile { display: flex; flex-direction: column; align-items: center; gap: .4rem; padding: .6rem .3rem; background: #f3f6fb; border: 1px solid var(--line); border-radius: 14px; cursor: pointer; color: var(--blue); }
+.tile .tc { font-weight: 850; font-size: 1.25rem; color: var(--ink); }
+.tile:hover { border-color: var(--blue); }
+.tile.on { background: var(--yellow); border-color: var(--yellow); }
+.tile.on .tc { color: var(--ink); }
+
+/* settings */
+.settings summary { font-weight: 700; cursor: pointer; }
+.settings .row { margin-top: 1rem; }
+.settings .row label { display: flex; justify-content: space-between; font-weight: 600; margin-bottom: .3rem; }
+.settings input[type="range"] { width: 100%; accent-color: var(--blue); }
+.toggles { display: flex; flex-wrap: wrap; gap: .5rem 1.4rem; margin-top: 1rem; }
+.toggles label { display: flex; align-items: center; gap: .5rem; font-weight: 600; cursor: pointer; }
+.toggles input { width: 1.15rem; height: 1.15rem; accent-color: var(--blue); }
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<main class="app">
+  <header class="head">
+    <h1>Morse</h1>
+    <span class="sos" aria-hidden="true"><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="gap"></i><i class="dash"></i><i class="dash"></i><i class="dash"></i><i class="gap"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i></span>
+  </header>
+
+  <section class="signal" aria-label="Signal lamp">
+    <div class="lamp" id="lamp" aria-hidden="true"><span id="lampCh"></span></div>
+    <p class="lstat" id="lstat">Ready</p>
+  </section>
+
+  <div class="tabs" role="tablist" aria-label="Sections">
+    <button type="button" role="tab" id="tab-translate" aria-selected="true" aria-controls="p-translate">Translate</button>
+    <button type="button" role="tab" id="tab-tap" aria-selected="false" aria-controls="p-tap" tabindex="-1">Tap key</button>
+    <button type="button" role="tab" id="tab-chart" aria-selected="false" aria-controls="p-chart" tabindex="-1">Chart</button>
+  </div>
+
+  <!-- Translate -->
+  <section class="panel" id="p-translate" role="tabpanel" aria-labelledby="tab-translate">
+    <div class="seg" role="group" aria-label="Direction">
+      <button type="button" data-mode="text" aria-pressed="true">Text to Morse</button>
+      <button type="button" data-mode="morse" aria-pressed="false">Morse to text</button>
+    </div>
+    <label class="lbl" for="inp" id="inpLbl">Text</label>
+    <textarea id="inp" rows="3" spellcheck="false" autocomplete="off" autocapitalize="off" placeholder="Type a message"></textarea>
+    <p class="hint" id="hint" hidden><span id="hintTxt"></span><button type="button" class="link" id="hintBtn"></button></p>
+    <p class="note" id="note" hidden></p>
+
+    <div class="outhead"><h2 id="outLbl">Morse code</h2></div>
+    <p class="empty" id="empty">Your result will show up here.</p>
+    <div class="strip" id="strip" aria-hidden="true"></div>
+    <p class="plain" id="plain"></p>
+
+    <div class="actions">
+      <button type="button" class="btn play" id="play" disabled>Play signal</button>
+      <button type="button" class="btn" id="copy" disabled>Copy Morse</button>
+      <button type="button" class="btn" id="swap" disabled>Swap</button>
+    </div>
+  </section>
+
+  <!-- Tap key -->
+  <section class="panel" id="p-tap" role="tabpanel" aria-labelledby="tab-tap" hidden>
+    <p class="help" id="tapHelp"></p>
+    <div class="tapstage">
+      <div class="tapcode" id="tapCode" aria-hidden="true"></div>
+      <p class="taptext" id="tapText" aria-live="polite"></p>
+    </div>
+    <div class="keywrap">
+      <button type="button" class="key" id="key" aria-label="Morse key. Hold to send, or hold the space bar">Hold</button>
+    </div>
+    <div class="actions">
+      <button type="button" class="btn" id="tapBack">Backspace</button>
+      <button type="button" class="btn" id="tapClear">Clear</button>
+      <button type="button" class="btn" id="tapCopy">Copy text</button>
+    </div>
+  </section>
+
+  <!-- Chart -->
+  <section class="panel chart" id="p-chart" role="tabpanel" aria-labelledby="tab-chart" hidden>
+    <h2>Letters</h2><div class="grid" id="g-letters"></div>
+    <h2>Numbers</h2><div class="grid" id="g-nums"></div>
+    <h2>Punctuation</h2><div class="grid" id="g-punct"></div>
+  </section>
+
+  <details class="panel settings">
+    <summary>Signal settings</summary>
+    <div class="row"><label for="wpm">Speed <span id="wpmV">15 WPM</span></label><input type="range" id="wpm" min="5" max="25" step="1"></div>
+    <div class="row"><label for="hz">Pitch <span id="hzV">600 Hz</span></label><input type="range" id="hz" min="300" max="1000" step="10"></div>
+    <div class="toggles">
+      <label><input type="checkbox" id="optSound"> Sound</label>
+      <label><input type="checkbox" id="optLight"> Light</label>
+      <label id="vibeWrap"><input type="checkbox" id="optVibe"> Vibration</label>
+    </div>
+  </details>
+</main>
+
+<script>
+(function () {
+  'use strict';
+  var $ = function (s) { return document.querySelector(s); };
+  var esc = function (s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; });
+  };
+  var store = {
+    get: function (k, d) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
+    set: function (k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  };
+
+  /* ---------- code table ---------- */
+  var TABLE = {
+    A: '.-', B: '-...', C: '-.-.', D: '-..', E: '.', F: '..-.', G: '--.', H: '....', I: '..', J: '.---', K: '-.-', L: '.-..', M: '--',
+    N: '-.', O: '---', P: '.--.', Q: '--.-', R: '.-.', S: '...', T: '-', U: '..-', V: '...-', W: '.--', X: '-..-', Y: '-.--', Z: '--..',
+    '0': '-----', '1': '.----', '2': '..---', '3': '...--', '4': '....-', '5': '.....', '6': '-....', '7': '--...', '8': '---..', '9': '----.',
+    '.': '.-.-.-', ',': '--..--', '?': '..--..', "'": '.----.', '!': '-.-.--', '(': '-.--.', ')': '-.--.-', '&': '.-...',
+    ':': '---...', ';': '-.-.-.', '=': '-...-', '+': '.-.-.', '-': '-....-', '_': '..--.-', '"': '.-..-.', '$': '...-..-', '@': '.--.-.'
+  };
+  var REV = {};
+  Object.keys(TABLE).forEach(function (k) { REV[TABLE[k]] = k; });
+
+  var cfg = Object.assign({ wpm: 15, hz: 600, sound: true, light: true, vibe: false }, store.get('mc:cfg', {}));
+  var unit = function () { return 1200 / cfg.wpm; };
+  var shapes = function (code) {
+    return code.split('').map(function (c) { return c === '.' ? '<i class="dot"></i>' : c === '-' ? '<i class="dash"></i>' : ''; }).join('');
+  };
+
+  /* ---------- audio + lamp ---------- */
+  var audio = null, osc = null, gain = null;
+  function ensureAudio() {
+    if (!audio) {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      audio = new AC(); osc = audio.createOscillator(); gain = audio.createGain();
+      osc.type = 'sine'; gain.gain.value = 0;
+      osc.connect(gain); gain.connect(audio.destination); osc.start();
+    }
+    if (audio.state === 'suspended') audio.resume();
+    osc.frequency.value = cfg.hz;
+  }
+  function signal(on) {
+    $('#lamp').classList.toggle('on', on && cfg.light);
+    if (cfg.sound && gain) gain.gain.setTargetAtTime(on ? 0.35 : 0, audio.currentTime, 0.004);
+    else if (gain && !on) gain.gain.setTargetAtTime(0, audio.currentTime, 0.004);
+  }
+  var buzz = function (ms) { if (cfg.vibe && navigator.vibrate) navigator.vibrate(ms); };
+
+  /* ---------- parsing ---------- */
+  function parseText(s) {
+    var clean = s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+    var skipped = [], words = [];
+    clean.split(/\s+/).filter(Boolean).forEach(function (w) {
+      var letters = [];
+      Array.from(w).forEach(function (ch) {
+        if (TABLE[ch]) letters.push({ ch: ch, code: TABLE[ch] });
+        else if (skipped.indexOf(ch) < 0) skipped.push(ch);
+      });
+      if (letters.length) words.push(letters);
+    });
+    return { words: words, skipped: skipped };
+  }
+  function parseMorse(s) {
+    var n = s.replace(/[·•∙]/g, '.').replace(/[–—−_]/g, '-').replace(/[^.\-\/\s]/g, '');
+    var words = [];
+    n.split(/\s*\/\s*|\n+|\s{3,}/).forEach(function (part) {
+      var letters = part.split(/\s+/).filter(Boolean).map(function (code) { return { ch: REV[code] || '?', code: code }; });
+      if (letters.length) words.push(letters);
+    });
+    return { words: words, skipped: [] };
+  }
+  var toMorse = function (words) { return words.map(function (w) { return w.map(function (l) { return l.code; }).join(' '); }).join(' / '); };
+  var toText = function (words) { return words.map(function (w) { return w.map(function (l) { return l.ch; }).join(''); }).join(' '); };
+  var looksMorse = function (v) { return /^[\s.\-_\/·•–—−∙]*$/.test(v) && /[.\-_·•–—−∙]/.test(v); };
+
+  /* ---------- translate tab ---------- */
+  var mode = 'text', cur = [], inp = $('#inp');
+
+  function syncMode() {
+    document.querySelectorAll('[data-mode]').forEach(function (b) { b.setAttribute('aria-pressed', b.dataset.mode === mode ? 'true' : 'false'); });
+    var t = mode === 'text';
+    $('#inpLbl').textContent = t ? 'Text' : 'Morse code';
+    inp.placeholder = t ? 'Type a message' : 'Dots and dashes. Space between letters, / between words';
+    $('#outLbl').textContent = t ? 'Morse code' : 'Text';
+    $('#copy').textContent = t ? 'Copy Morse' : 'Copy text';
+  }
+  function update() {
+    stop();
+    var v = inp.value, p = mode === 'text' ? parseText(v) : parseMorse(v);
+    cur = p.words;
+    var n = 0;
+    $('#strip').innerHTML = cur.map(function (w) {
+      return '<div class="word">' + w.map(function (l) {
+        return '<div class="ltr" data-i="' + (n++) + '"><span class="sy">' + shapes(l.code) + '</span><span class="lc">' + esc(l.ch) + '</span></div>';
+      }).join('') + '</div>';
+    }).join('');
+    $('#plain').textContent = cur.length ? (mode === 'text' ? toMorse(cur) : toText(cur)) : '';
+    $('#empty').hidden = cur.length > 0;
+    ['play', 'copy', 'swap'].forEach(function (id) { $('#' + id).disabled = !cur.length; });
+
+    var hint = $('#hint'); hint.hidden = true;
+    if (mode === 'text' && looksMorse(v)) { $('#hintTxt').textContent = 'This looks like Morse code.'; $('#hintBtn').textContent = 'Switch to Morse to text'; $('#hintBtn').dataset.to = 'morse'; hint.hidden = false; }
+    else if (mode === 'morse' && /[A-Za-z0-9]/.test(v)) { $('#hintTxt').textContent = 'This looks like plain text.'; $('#hintBtn').textContent = 'Switch to Text to Morse'; $('#hintBtn').dataset.to = 'text'; hint.hidden = false; }
+    var note = $('#note');
+    note.hidden = !p.skipped.length;
+    if (p.skipped.length) note.textContent = 'Skipped, no Morse code for: ' + p.skipped.join(' ');
+  }
+  inp.addEventListener('input', update);
+  document.querySelectorAll('[data-mode]').forEach(function (b) {
+    b.addEventListener('click', function () { mode = b.dataset.mode; syncMode(); update(); });
+  });
+  $('#hintBtn').addEventListener('click', function () { mode = this.dataset.to; syncMode(); update(); });
+  $('#swap').addEventListener('click', function () {
+    if (!cur.length) return;
+    var out = mode === 'text' ? toMorse(cur) : toText(cur);
+    mode = mode === 'text' ? 'morse' : 'text';
+    inp.value = out; syncMode(); update();
+  });
+  function copy(text, btn) {
+    var label = btn.textContent;
+    function done() { btn.textContent = 'Copied'; setTimeout(function () { btn.textContent = label; }, 1400); }
+    function fallback() {
+      var ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); done(); } catch (e) {}
+      document.body.removeChild(ta);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, fallback); else fallback();
+  }
+  $('#copy').addEventListener('click', function () { if (cur.length) copy(mode === 'text' ? toMorse(cur) : toText(cur), this); });
+
+  /* ---------- playback ---------- */
+  var token = 0, playing = false, waitTimer = 0;
+  function wait(ms) { return new Promise(function (res) { waitTimer = setTimeout(res, ms); }); }
+  function timeline(words) {
+    var u = unit(), ev = [], n = 0;
+    words.forEach(function (w, wi) {
+      if (wi > 0) ev.push({ on: false, d: 7 * u, l: -1 });
+      w.forEach(function (l, li) {
+        if (li > 0) ev.push({ on: false, d: 3 * u, l: -1 });
+        var idx = n++, syms = l.code.split('').filter(function (c) { return c === '.' || c === '-'; });
+        syms.forEach(function (c, si) {
+          if (si > 0) ev.push({ on: false, d: u, l: idx });
+          ev.push({ on: true, d: (c === '.' ? 1 : 3) * u, l: idx, ch: l.ch });
+        });
+      });
+    });
+    return ev;
+  }
+  function mark(i, ch) {
+    document.querySelectorAll('#strip .ltr.now').forEach(function (e) { e.classList.remove('now'); });
+    var el = document.querySelector('#strip .ltr[data-i="' + i + '"]');
+    if (el) { el.classList.add('now'); el.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }
+    $('#lampCh').textContent = ch;
+  }
+  function setPlaying(p) {
+    playing = p;
+    $('#play').textContent = p ? 'Stop' : 'Play signal';
+    $('#lstat').textContent = p ? 'Sending' : 'Ready';
+  }
+  function stop() {
+    token++; clearTimeout(waitTimer);
+    if (navigator.vibrate) navigator.vibrate(0);
+    signal(false);
+    document.querySelectorAll('#strip .ltr.now').forEach(function (e) { e.classList.remove('now'); });
+    $('#lampCh').textContent = '';
+    if (playing) setPlaying(false);
+  }
+  async function play(words, track) {
+    stop();
+    if (!words.length) return;
+    ensureAudio();
+    var my = token; setPlaying(true);
+    var ev = timeline(words), cur = -1;
+    for (var k = 0; k < ev.length; k++) {
+      var e = ev[k];
+      if (my !== token) return;
+      if (e.l >= 0 && e.l !== cur) { cur = e.l; if (track) mark(cur, e.ch || ''); else $('#lampCh').textContent = e.ch || ''; }
+      if (e.on) { signal(true); buzz(e.d); }
+      await wait(e.d);
+      if (my !== token) return;
+      if (e.on) signal(false);
+    }
+    stop();
+  }
+  $('#play').addEventListener('click', function () { if (playing) stop(); else play(cur, true); });
+
+  /* ---------- tabs ---------- */
+  var tab = 'translate', TABS = ['translate', 'tap', 'chart'];
+  function setTab(name) {
+    tab = name; stop(); releaseKey(true);
+    TABS.forEach(function (n) {
+      var sel = n === name;
+      $('#tab-' + n).setAttribute('aria-selected', sel ? 'true' : 'false');
+      $('#tab-' + n).tabIndex = sel ? 0 : -1;
+      $('#p-' + n).hidden = !sel;
+    });
+  }
+  TABS.forEach(function (n) {
+    $('#tab-' + n).addEventListener('click', function () { setTab(n); });
+    $('#tab-' + n).addEventListener('keydown', function (e) {
+      if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+      var i = (TABS.indexOf(n) + (e.key === 'ArrowRight' ? 1 : -1) + TABS.length) % TABS.length;
+      setTab(TABS[i]); $('#tab-' + TABS[i]).focus();
+    });
+  });
+
+  /* ---------- tap key ---------- */
+  var tap = { code: '', text: '', down: false, at: 0, lt: 0, wt: 0 };
+  var thr = function () { return Math.max(2 * unit(), 200); };
+  var letterGap = function () { return Math.max(4 * unit(), 500); };
+  var wordGap = function () { return Math.max(10 * unit(), 1400); };
+  function helpText() {
+    $('#tapHelp').textContent = 'Hold the key or the space bar. A press under ' + (thr() / 1000).toFixed(2) + ' seconds is a dot, longer is a dash. Pause to finish a letter.';
+  }
+  function tapRender() {
+    $('#tapCode').innerHTML = shapes(tap.code);
+    $('#tapText').textContent = tap.text;
+  }
+  function pressKey() {
+    if (tap.down) return;
+    tap.down = true; tap.at = performance.now();
+    clearTimeout(tap.lt); clearTimeout(tap.wt);
+    ensureAudio(); signal(true); buzz(3000);
+    $('#key').classList.add('down'); $('#lstat').textContent = 'Keying';
+  }
+  function releaseKey(silent) {
+    if (!tap.down) return;
+    tap.down = false;
+    signal(false); if (navigator.vibrate) navigator.vibrate(0);
+    $('#key').classList.remove('down'); $('#lstat').textContent = 'Ready';
+    if (silent) { tap.code = ''; clearTimeout(tap.lt); clearTimeout(tap.wt); tapRender(); return; }
+    var d = performance.now() - tap.at;
+    tap.code += d < thr() ? '.' : '-';
+    tapRender();
+    tap.lt = setTimeout(function () {
+      tap.text += REV[tap.code] || '?'; tap.code = ''; tapRender();
+      tap.wt = setTimeout(function () { if (tap.text && !/ $/.test(tap.text)) { tap.text += ' '; tapRender(); } }, wordGap() - letterGap());
+    }, letterGap());
+  }
+  var key = $('#key');
+  key.addEventListener('pointerdown', function (e) { e.preventDefault(); try { key.setPointerCapture(e.pointerId); } catch (x) {} pressKey(); });
+  key.addEventListener('pointerup', function () { releaseKey(); });
+  key.addEventListener('pointercancel', function () { releaseKey(); });
+  key.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+  document.addEventListener('keydown', function (e) {
+    if (tab !== 'tap' || e.code !== 'Space' || e.repeat) return;
+    if (e.target !== document.body && e.target !== key) return;
+    e.preventDefault(); pressKey();
+  });
+  document.addEventListener('keyup', function (e) {
+    if (tab !== 'tap' || e.code !== 'Space') return;
+    if (tap.down) { e.preventDefault(); releaseKey(); }
+  });
+  $('#tapBack').addEventListener('click', function () {
+    clearTimeout(tap.lt); clearTimeout(tap.wt);
+    if (tap.code) tap.code = ''; else tap.text = tap.text.slice(0, -1);
+    tapRender();
+  });
+  $('#tapClear').addEventListener('click', function () { clearTimeout(tap.lt); clearTimeout(tap.wt); tap.code = ''; tap.text = ''; tapRender(); });
+  $('#tapCopy').addEventListener('click', function () { if (tap.text.trim()) copy(tap.text.trim(), this); });
+
+  /* ---------- chart ---------- */
+  function buildChart(id, chars) {
+    $(id).innerHTML = chars.split('').map(function (c) {
+      return '<button type="button" class="tile" data-ch="' + esc(c) + '" aria-label="' + esc(c) + ', play signal"><span class="tc">' + esc(c) + '</span><span class="sy">' + shapes(TABLE[c]) + '</span></button>';
+    }).join('');
+  }
+  buildChart('#g-letters', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ');
+  buildChart('#g-nums', '0123456789');
+  buildChart('#g-punct', ".,?'!():;=+-_\"$&@");
+  $('#p-chart').addEventListener('click', function (e) {
+    var t = e.target.closest('.tile'); if (!t) return;
+    var ch = t.dataset.ch;
+    document.querySelectorAll('.tile.on').forEach(function (x) { x.classList.remove('on'); });
+    t.classList.add('on');
+    play([[{ ch: ch, code: TABLE[ch] }]], false).then(function () { t.classList.remove('on'); });
+  });
+
+  /* ---------- settings ---------- */
+  function applyCfg() {
+    $('#wpm').value = cfg.wpm; $('#wpmV').textContent = cfg.wpm + ' WPM';
+    $('#hz').value = cfg.hz; $('#hzV').textContent = cfg.hz + ' Hz';
+    $('#optSound').checked = cfg.sound; $('#optLight').checked = cfg.light; $('#optVibe').checked = cfg.vibe;
+    if (osc) osc.frequency.value = cfg.hz;
+    helpText();
+  }
+  function saveCfg() { store.set('mc:cfg', cfg); applyCfg(); }
+  $('#wpm').addEventListener('input', function () { cfg.wpm = Number(this.value); saveCfg(); });
+  $('#hz').addEventListener('input', function () { cfg.hz = Number(this.value); saveCfg(); });
+  $('#optSound').addEventListener('change', function () { cfg.sound = this.checked; saveCfg(); });
+  $('#optLight').addEventListener('change', function () { cfg.light = this.checked; saveCfg(); });
+  $('#optVibe').addEventListener('change', function () { cfg.vibe = this.checked; saveCfg(); });
+  if (!navigator.vibrate) $('#vibeWrap').hidden = true;
+
+  /* ---------- go ---------- */
+  applyCfg(); syncMode(); update(); tapRender();
+})();
+</script>
+</body>
+</html>

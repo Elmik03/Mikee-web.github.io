@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ask anything</title>
+<style>
+  :root {
+    --bg: #f2f5f4;
+    --surface: #ffffff;
+    --ink: #16242b;
+    --muted: #5d6e76;
+    --line: #d5dfdd;
+    --accent: #0c6b73;
+    --accent-ink: #ffffff;
+    --user-bg: #16353b;
+    --user-ink: #eef6f5;
+    --code-bg: #e8eeed;
+    --danger: #a3341f;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1a1e;
+      --surface: #16252a;
+      --ink: #e6efee;
+      --muted: #8da0a6;
+      --line: #27393f;
+      --accent: #4cc3cc;
+      --accent-ink: #062226;
+      --user-bg: #1f4a52;
+      --user-ink: #eef6f5;
+      --code-bg: #0c1519;
+      --danger: #ff8f7a;
+      color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    display: flex;
+    flex-direction: column;
+  }
+  button, select, textarea { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 16px;
+    padding-top: max(12px, env(safe-area-inset-top));
+    border-bottom: 1px solid var(--line);
+    background: var(--surface);
+  }
+  header h1 {
+    margin: 0; flex: 1;
+    font: 600 1.25rem/1.2 "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+    letter-spacing: -0.01em;
+  }
+  .tools { display: flex; gap: 8px; align-items: center; }
+  select, .ghost {
+    background: transparent;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 6px 10px;
+    cursor: pointer;
+    max-width: 140px;
+  }
+  .ghost:hover, select:hover { border-color: var(--accent); }
+
+  main {
+    flex: 1; overflow-y: auto;
+    padding: 20px 16px 8px;
+    scroll-behavior: smooth;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; }
+
+  .empty { padding: 8vh 0 0; }
+  .empty h2 {
+    margin: 0 0 6px;
+    font: 600 2rem/1.15 "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+    letter-spacing: -0.02em;
+  }
+  .empty p { margin: 0 0 20px; color: var(--muted); max-width: 46ch; }
+  .starters { display: grid; gap: 8px; }
+  .starters button {
+    text-align: left; cursor: pointer;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 12px 14px;
+  }
+  .starters button:hover { border-color: var(--accent); }
+
+  .msg { margin: 0 0 18px; display: flex; flex-direction: column; }
+  .msg.user { align-items: flex-end; }
+  .bubble { max-width: 100%; overflow-wrap: anywhere; }
+  .user .bubble {
+    background: var(--user-bg); color: var(--user-ink);
+    padding: 10px 14px;
+    border-radius: 16px 16px 4px 16px;
+    max-width: 85%;
+    white-space: pre-wrap;
+  }
+  .bot .bubble {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    padding: 12px 16px;
+    border-radius: 16px 16px 16px 4px;
+  }
+  .bot .bubble > :first-child { margin-top: 0; }
+  .bot .bubble > :last-child { margin-bottom: 0; }
+  .bubble p { margin: 0.6em 0; }
+  .bubble ul, .bubble ol { margin: 0.6em 0; padding-left: 1.4em; }
+  .bubble a { color: var(--accent); }
+  .bubble code {
+    font: 0.88em ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    background: var(--code-bg);
+    padding: 0.1em 0.35em; border-radius: 4px;
+  }
+  .bubble pre {
+    background: var(--code-bg);
+    padding: 12px; border-radius: 8px;
+    overflow-x: auto; margin: 0.7em 0;
+  }
+  .bubble pre code { background: none; padding: 0; }
+  .meta { display: flex; gap: 12px; margin-top: 4px; font-size: 0.8rem; color: var(--muted); }
+  .meta button {
+    background: none; border: 0; padding: 2px 0; cursor: pointer; color: var(--muted);
+  }
+  .meta button:hover { color: var(--accent); }
+  .error { color: var(--danger); }
+  .typing::after {
+    content: ""; display: inline-block; width: 8px; height: 1em;
+    background: var(--accent); vertical-align: text-bottom; margin-left: 2px;
+    animation: blink 1s steps(2) infinite;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) {
+    .typing::after { animation: none; }
+    main { scroll-behavior: auto; }
+  }
+
+  form {
+    border-top: 1px solid var(--line);
+    background: var(--surface);
+    padding: 10px 16px;
+    padding-bottom: max(10px, env(safe-area-inset-bottom));
+  }
+  .row { max-width: 720px; margin: 0 auto; display: flex; gap: 8px; align-items: flex-end; }
+  textarea {
+    flex: 1; resize: none;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 10px 12px;
+    max-height: 160px; min-height: 44px;
+  }
+  textarea::placeholder { color: var(--muted); }
+  .send {
+    background: var(--accent); color: var(--accent-ink);
+    border: 0; border-radius: 12px;
+    height: 44px; padding: 0 18px; font-weight: 600; cursor: pointer;
+  }
+  .send:disabled { opacity: 0.5; cursor: not-allowed; }
+  .send.stop { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+  .note { max-width: 720px; margin: 6px auto 0; font-size: 0.75rem; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Ask anything</h1>
+  <div class="tools">
+    <select id="model" aria-label="Model"><option value="openai">openai</option></select>
+    <button class="ghost" id="clear" type="button">New chat</button>
+  </div>
+</header>
+
+<main id="scroller">
+  <div class="wrap" id="log" aria-live="polite"></div>
+</main>
+
+<form id="form">
+  <div class="row">
+    <textarea id="input" rows="1" placeholder="Type a question" aria-label="Your question"></textarea>
+    <button class="send" id="send" type="submit">Send</button>
+  </div>
+  <p class="note">Answers come from a free AI service and can be wrong. Don't share private information.</p>
+</form>
+
+<script>
+/* ---------- Settings: edit these ---------- */
+const API_URL    = "https://text.pollinations.ai/openai";
+const MODELS_URL = "https://text.pollinations.ai/models";
+const SYSTEM_PROMPT = "You are a clear, helpful assistant. Answer directly and keep answers concise unless asked for detail.";
+const MAX_CONTEXT = 20;          // messages sent per request
+const STORAGE_KEY = "qa-chat-v1";
+/* ------------------------------------------ */
+
+const $ = (id) => document.getElementById(id);
+const log = $("log"), input = $("input"), sendBtn = $("send"),
+      modelSel = $("model"), scroller = $("scroller");
+
+let history = [];
+let controller = null;
+let busy = false;
+
+const STARTERS = [
+  "Explain how vaccines work in simple terms",
+  "Write a Python function that checks if a string is a palindrome",
+  "Give me three ideas for a weekend project",
+];
+
+/* ---------- Safe, minimal markdown ---------- */
+function esc(s) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+function inline(s) {
+  return s
+    .replace(/`([^`\n]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>")
+    .replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g,
+      '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+}
+function render(text) {
+  const parts = text.split(/```/);
+  let html = "";
+  parts.forEach((part, i) => {
+    if (i % 2 === 1) {                       // fenced code (an unclosed fence still renders)
+      const code = part.replace(/^[^\n]*\n/, "");
+      html += "<pre><code>" + esc(code.replace(/\n$/, "")) + "</code></pre>";
+      return;
+    }
+    const lines = esc(part).split("\n");
+    let list = null, para = [];
+    const flushPara = () => { if (para.length) { html += "<p>" + inline(para.join("<br>")) + "</p>"; para = []; } };
+    const flushList = () => { if (list) { html += "</" + list + ">"; list = null; } };
+    for (const line of lines) {
+      const ul = line.match(/^\s*[-*]\s+(.*)/);
+      const ol = line.match(/^\s*\d+[.)]\s+(.*)/);
+      const h  = line.match(/^#{1,6}\s+(.*)/);
+      if (ul || ol) {
+        flushPara();
+        const kind = ul ? "ul" : "ol";
+        if (list !== kind) { flushList(); html += "<" + kind + ">"; list = kind; }
+        html += "<li>" + inline((ul || ol)[1]) + "</li>";
+      } else if (h) {
+        flushPara(); flushList();
+        html += "<p><strong>" + inline(h[1]) + "</strong></p>";
+      } else if (line.trim() === "") {
+        flushPara(); flushList();
+      } else {
+        flushList(); para.push(line);
+      }
+    }
+    flushPara(); flushList();
+  });
+  return html;
+}
+
+/* ---------- UI ---------- */
+function save() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ history, model: modelSel.value })); } catch {}
+}
+function scrollDown() { scroller.scrollTop = scroller.scrollHeight; }
+
+function showEmpty() {
+  log.innerHTML = "";
+  const box = document.createElement("div");
+  box.className = "empty";
+  box.innerHTML = "<h2>What do you want to know?</h2><p>Ask a question and get an answer. Your chat stays in this browser.</p>";
+  const list = document.createElement("div");
+  list.className = "starters";
+  STARTERS.forEach((q) => {
+    const b = document.createElement("button");
+    b.type = "button"; b.textContent = q;
+    b.addEventListener("click", () => ask(q));
+    list.appendChild(b);
+  });
+  box.appendChild(list);
+  log.appendChild(box);
+}
+
+function addMessage(role, text) {
+  const wrap = document.createElement("div");
+  wrap.className = "msg " + (role === "user" ? "user" : "bot");
+  const bubble = document.createElement("div");
+  bubble.className = "bubble";
+  if (role === "user") bubble.textContent = text;
+  else bubble.innerHTML = render(text);
+  wrap.appendChild(bubble);
+  log.appendChild(wrap);
+  return { wrap, bubble };
+}
+
+function addActions(wrap, getText, onRetry) {
+  const meta = document.createElement("div");
+  meta.className = "meta";
+  const copy = document.createElement("button");
+  copy.type = "button"; copy.textContent = "Copy";
+  copy.addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText(getText()); copy.textContent = "Copied"; }
+    catch { copy.textContent = "Copy failed"; }
+    setTimeout(() => (copy.textContent = "Copy"), 1500);
+  });
+  meta.appendChild(copy);
+  if (onRetry) {
+    const retry = document.createElement("button");
+    retry.type = "button"; retry.textContent = "Try again";
+    retry.addEventListener("click", onRetry);
+    meta.appendChild(retry);
+  }
+  wrap.appendChild(meta);
+}
+
+function setBusy(state) {
+  busy = state;
+  if (state) {
+    sendBtn.textContent = "Stop";
+    sendBtn.classList.add("stop");
+    sendBtn.type = "button";
+  } else {
+    sendBtn.textContent = "Send";
+    sendBtn.classList.remove("stop");
+    sendBtn.type = "submit";
+  }
+}
+
+/* ---------- API ---------- */
+async function streamReply(messages, onToken, signal) {
+  const res = await fetch(API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ model: modelSel.value, messages, stream: true }),
+    signal,
+  });
+  if (!res.ok) {
+    let detail = "";
+    try { detail = (await res.text()).slice(0, 200); } catch {}
+    throw new Error("The service returned " + res.status + (detail ? ": " + detail : ""));
+  }
+  const type = res.headers.get("content-type") || "";
+  if (!res.body || !type.includes("text/event-stream")) {   // non-streaming fallback
+    const data = await res.json();
+    const text = data.choices?.[0]?.message?.content || "";
+    onToken(text);
+    return text;
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "", full = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    const lines = buf.split("\n");
+    buf = lines.pop();
+    for (const raw of lines) {
+      const line = raw.trim();
+      if (!line.startsWith("data:")) continue;
+      const payload = line.slice(5).trim();
+      if (payload === "[DONE]") return full;
+      try {
+        const delta = JSON.parse(payload).choices?.[0]?.delta?.content;
+        if (delta) { full += delta; onToken(full); }
+      } catch {}
+    }
+  }
+  return full;
+}
+
+async function ask(text) {
+  text = text.trim();
+  if (!text || busy) return;
+  if (!history.length) log.innerHTML = "";
+  history.push({ role: "user", content: text });
+  addMessage("user", text);
+  input.value = ""; autosize();
+  await respond();
+}
+
+async function respond() {
+  setBusy(true);
+  controller = new AbortController();
+  const { wrap, bubble } = addMessage("bot", "");
+  bubble.classList.add("typing");
+  scrollDown();
+
+  const messages = [{ role: "system", content: SYSTEM_PROMPT }, ...history.slice(-MAX_CONTEXT)];
+  let answer = "";
+  try {
+    answer = await streamReply(messages, (t) => {
+      answer = t;
+      bubble.innerHTML = render(t);
+      scrollDown();
+    }, controller.signal);
+    bubble.classList.remove("typing");
+    if (!answer.trim()) throw new Error("The service sent an empty answer.");
+    history.push({ role: "assistant", content: answer });
+    addActions(wrap, () => answer, null);
+  } catch (err) {
+    bubble.classList.remove("typing");
+    if (err.name === "AbortError") {
+      if (answer.trim()) {
+        history.push({ role: "assistant", content: answer });
+        addActions(wrap, () => answer, null);
+      } else {
+        wrap.remove();
+        history.pop();                       // drop the unanswered question
+        input.value = history.length ? "" : input.value;
+      }
+    } else {
+      bubble.innerHTML = '<span class="error">Couldn\'t get an answer. ' + esc(err.message || "Check your connection and try again.") + "</span>";
+      addActions(wrap, () => bubble.textContent, () => {
+        wrap.remove(); respond();
+      });
+    }
+  } finally {
+    controller = null;
+    setBusy(false);
+    save();
+    scrollDown();
+  }
+}
+
+/* ---------- Models ---------- */
+async function loadModels(saved) {
+  let names = ["openai", "mistral", "llama"];
+  try {
+    const res = await fetch(MODELS_URL);
+    if (res.ok) {
+      const data = await res.json();
+      const list = (Array.isArray(data) ? data : [])
+        .filter((m) => typeof m === "string" || !m.type || m.type === "chat")
+        .map((m) => (typeof m === "string" ? m : m.name))
+        .filter(Boolean);
+      if (list.length) names = list;
+    }
+  } catch { /* keep fallback */ }
+  modelSel.innerHTML = "";
+  names.forEach((n) => {
+    const o = document.createElement("option");
+    o.value = n; o.textContent = n;
+    modelSel.appendChild(o);
+  });
+  if (saved && names.includes(saved)) modelSel.value = saved;
+}
+
+/* ---------- Input handling ---------- */
+function autosize() {
+  input.style.height = "auto";
+  input.style.height = Math.min(input.scrollHeight, 160) + "px";
+}
+input.addEventListener("input", autosize);
+input.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
+    e.preventDefault();
+    ask(input.value);
+  }
+});
+$("form").addEventListener("submit", (e) => { e.preventDefault(); ask(input.value); });
+sendBtn.addEventListener("click", () => { if (busy && controller) controller.abort(); });
+modelSel.addEventListener("change", save);
+$("clear").addEventListener("click", () => {
+  if (controller) controller.abort();
+  history = []; save(); showEmpty(); input.focus();
+});
+
+/* ---------- Boot ---------- */
+(async function init() {
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null"); } catch {}
+  await loadModels(saved && saved.model);
+  if (saved && Array.isArray(saved.history) && saved.history.length) {
+    history = saved.history;
+    history.forEach((m) => addMessage(m.role, m.content));
+    // add copy buttons to restored answers
+    log.querySelectorAll(".msg.bot").forEach((w, i) => {
+      const bots = history.filter((m) => m.role === "assistant");
+      addActions(w, () => (bots[i] ? bots[i].content : ""), null);
+    });
+    scrollDown();
+  } else {
+    showEmpty();
+  }
+})();
+</script>
+</body>
+</html>

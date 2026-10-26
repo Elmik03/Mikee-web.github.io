@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lyric Finder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;1,6..72,400&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #e9eef5;
+    --card: #f9fbfe;
+    --field: #ffffff;
+    --ink: #1b2433;
+    --muted: #5d6b82;
+    --blue: #2f5bff;
+    --on-blue: #ffffff;
+    --mark: #ffd23f;
+    --line: #cdd6e4;
+    --hover: #eef2fa;
+    --err: #b3261e;
+  }
+  :root[data-theme="dark"] {
+    --paper: #0e1420;
+    --card: #172033;
+    --field: #0e1420;
+    --ink: #e8edf7;
+    --muted: #93a0b8;
+    --blue: #6d8dff;
+    --on-blue: #0e1420;
+    --line: #2a3550;
+    --hover: #1e2942;
+    --err: #ff8a80;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    line-height: 1.5;
+  }
+  main { max-width: 720px; margin: 0 auto; padding: 32px 20px 80px; }
+  .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+  h1 {
+    font-family: "Newsreader", Georgia, serif;
+    font-weight: 600;
+    font-size: clamp(2.2rem, 7vw, 3.4rem);
+    line-height: 1.05;
+    margin: 0 0 8px;
+    letter-spacing: -0.02em;
+  }
+  .sub { color: var(--muted); margin: 0 0 28px; max-width: 52ch; }
+  #themeBtn {
+    font: inherit; cursor: pointer; flex: none;
+    background: transparent; color: var(--ink);
+    border: 1.5px solid var(--line); border-radius: 999px; padding: 6px 14px;
+  }
+
+  .tabs { display: flex; gap: 4px; border-bottom: 2px solid var(--ink); }
+  .tab {
+    font: inherit; font-weight: 500;
+    background: transparent; color: var(--muted);
+    border: 0; padding: 10px 16px; cursor: pointer;
+    border-radius: 8px 8px 0 0;
+  }
+  .tab[aria-selected="true"] { background: var(--ink); color: var(--paper); }
+  button:focus-visible, input:focus-visible, audio:focus-visible {
+    outline: 3px solid var(--blue); outline-offset: 2px;
+  }
+
+  .panel { background: var(--card); padding: 22px; border: 1px solid var(--line); border-top: 0; border-radius: 0 0 10px 10px; }
+  .panel[hidden] { display: none; }
+
+  label { display: block; font-weight: 500; margin-bottom: 6px; }
+  .row { display: flex; gap: 8px; }
+  input[type="text"], input[type="password"] {
+    flex: 1; min-width: 0;
+    font: inherit; padding: 11px 12px;
+    background: var(--field); color: var(--ink);
+    border: 1.5px solid var(--line); border-radius: 8px;
+  }
+  button.primary, button.secondary {
+    font: inherit; font-weight: 500; cursor: pointer;
+    padding: 10px 16px; border-radius: 8px; border: 1.5px solid var(--ink);
+  }
+  button.primary { background: var(--blue); border-color: var(--blue); color: var(--on-blue); }
+  button.secondary { background: transparent; color: var(--ink); }
+  button.small { padding: 5px 11px; font-size: .88rem; }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  [hidden] { display: none !important; }
+
+  .field { margin-bottom: 16px; }
+  .hint { font-size: .85rem; color: var(--muted); margin-top: 6px; }
+  .hint a { color: var(--blue); }
+
+  /* History */
+  #history { margin-top: 20px; }
+  .h-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .h-head span { font-weight: 500; }
+  .link-btn { font: inherit; font-size: .88rem; background: none; border: 0; color: var(--muted); cursor: pointer; text-decoration: underline; padding: 2px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    font: inherit; font-size: .9rem; cursor: pointer; text-align: left;
+    background: transparent; color: var(--ink);
+    border: 1.5px solid var(--line); border-radius: 8px; padding: 6px 10px;
+  }
+  .chip:hover { background: var(--hover); }
+  .chip small { display: block; color: var(--muted); }
+
+  ul.results { list-style: none; padding: 0; margin: 16px 0 0; border-top: 1px solid var(--line); }
+  ul.results li button {
+    width: 100%; text-align: left; font: inherit; cursor: pointer; color: var(--ink);
+    background: transparent; border: 0; border-bottom: 1px solid var(--line);
+    padding: 12px 4px; display: flex; flex-direction: column;
+  }
+  ul.results li button:hover { background: var(--hover); }
+  .r-title { font-weight: 500; }
+  .r-artist { color: var(--muted); font-size: .9rem; }
+
+  .drop { border: 2px dashed var(--line); border-radius: 10px; padding: 18px; text-align: center; background: var(--field); }
+  .drop.over { border-color: var(--blue); background: var(--hover); }
+  .drop .row { justify-content: center; flex-wrap: wrap; margin-top: 10px; }
+  #fileName { color: var(--muted); font-size: .9rem; margin-top: 8px; min-height: 1.3em; }
+  .rec-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--err); margin-right: 6px; animation: pulse 1s infinite; }
+  @keyframes pulse { 50% { opacity: .25; } }
+  @media (prefers-reduced-motion: reduce) { .rec-dot { animation: none; } }
+
+  #status { margin: 18px 0 0; min-height: 1.4em; color: var(--muted); }
+  #status.error { color: var(--err); font-weight: 500; }
+
+  #lyricsCard { margin-top: 28px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .l-head { padding: 20px 22px 14px; border-bottom: 1px solid var(--line); }
+  .l-head h2 { font-family: "Newsreader", Georgia, serif; font-size: 1.8rem; margin: 0; line-height: 1.15; }
+  .l-head h2 span { background: linear-gradient(transparent 55%, color-mix(in srgb, var(--mark) 70%, transparent) 55%); }
+  .l-head p { margin: 4px 0 14px; color: var(--muted); }
+  .l-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .seg { display: inline-flex; border: 1.5px solid var(--ink); border-radius: 8px; overflow: hidden; margin-left: auto; }
+  .seg button { font: inherit; font-size: .9rem; border: 0; background: transparent; color: var(--ink); padding: 8px 12px; cursor: pointer; }
+  .seg button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+
+  #playerWrap { padding: 14px 22px; border-bottom: 1px solid var(--line); }
+  #playerWrap audio { width: 100%; }
+  .p-tools { display: flex; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; font-size: .88rem; color: var(--muted); }
+  #offsetLabel { min-width: 5.5em; text-align: center; }
+  #loadAudioBar { padding: 12px 22px; border-bottom: 1px solid var(--line); display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  #loadAudioBar .hint { margin: 0; }
+
+  pre#lyrics {
+    font-family: "Newsreader", Georgia, serif; font-size: 1.15rem; line-height: 1.7;
+    white-space: pre-wrap; margin: 0; padding: 22px; max-height: 70vh; overflow: auto;
+  }
+  #syncBox { position: relative; max-height: 70vh; overflow: auto; padding: 30vh 22px; font-family: "Newsreader", Georgia, serif; }
+  .ln {
+    font-size: 1.3rem; line-height: 1.5; padding: 4px 0; cursor: pointer;
+    color: var(--muted); opacity: .75; transition: color .2s, opacity .2s;
+  }
+  .ln:hover { opacity: 1; }
+  .ln.active {
+    color: var(--ink); opacity: 1; font-weight: 600;
+    background: linear-gradient(transparent 60%, color-mix(in srgb, var(--mark) 55%, transparent) 60%);
+    display: inline-block;
+  }
+  .ln.blank { cursor: default; height: .8em; }
+  @media (prefers-reduced-motion: reduce) { .ln { transition: none; } }
+</style>
+</head>
+<body>
+<main>
+  <div class="top">
+    <h1>Lyric Finder</h1>
+    <button id="themeBtn" type="button" aria-pressed="false">Dark mode</button>
+  </div>
+  <p class="sub">Search for a song by name, or play a few seconds of it and let the app work out what it is. Then read the lyrics, follow them in time with the music, or save them to a file.</p>
+
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" id="tab-search" aria-selected="true" aria-controls="panel-search">Search by name</button>
+    <button class="tab" role="tab" id="tab-audio" aria-selected="false" aria-controls="panel-audio">Identify from audio</button>
+  </div>
+
+  <!-- Search -->
+  <section class="panel" id="panel-search" role="tabpanel" aria-labelledby="tab-search">
+    <form id="searchForm">
+      <label for="q">Song title, artist, or both</label>
+      <div class="row">
+        <input type="text" id="q" placeholder="e.g. Coldplay Yellow" autocomplete="off" required>
+        <button class="primary" type="submit">Search</button>
+      </div>
+    </form>
+    <ul class="results" id="results"></ul>
+    <div id="history" hidden>
+      <div class="h-head"><span>Recent songs</span><button class="link-btn" id="clearHistory" type="button">Clear</button></div>
+      <div class="chips" id="chips"></div>
+    </div>
+  </section>
+
+  <!-- Audio -->
+  <section class="panel" id="panel-audio" role="tabpanel" aria-labelledby="tab-audio" hidden>
+    <div class="field">
+      <label for="token">AudD API token</label>
+      <input type="password" id="token" placeholder="Paste your token" autocomplete="off">
+      <p class="hint">Song recognition uses the <a href="https://audd.io" target="_blank" rel="noopener">AudD</a> service. Create an account there to get a token. It is saved only in this browser.</p>
+    </div>
+
+    <div class="drop" id="drop">
+      <div>Drop an audio file here, or choose how to add one</div>
+      <div class="row">
+        <button class="secondary" type="button" id="pickBtn">Choose file</button>
+        <button class="secondary" type="button" id="recBtn">Record 10 seconds</button>
+      </div>
+      <input type="file" id="file" accept="audio/*,video/*" hidden>
+      <div id="fileName"></div>
+    </div>
+    <div class="row" style="margin-top:14px">
+      <button class="primary" type="button" id="identifyBtn" disabled>Identify song</button>
+    </div>
+  </section>
+
+  <p id="status" role="status" aria-live="polite"></p>
+
+  <section id="lyricsCard" hidden>
+    <div class="l-head">
+      <h2><span id="lTitle"></span></h2>
+      <p id="lArtist"></p>
+      <div class="l-actions">
+        <button class="primary" id="dlBtn" type="button">Download .txt</button>
+        <button class="secondary" id="dlLrcBtn" type="button" hidden>Download .lrc</button>
+        <button class="secondary" id="copyBtn" type="button">Copy lyrics</button>
+        <div class="seg" id="viewSeg" hidden role="group" aria-label="Lyrics view">
+          <button type="button" id="vPlain" aria-pressed="true">Plain</button>
+          <button type="button" id="vSynced" aria-pressed="false">Synced</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="loadAudioBar" hidden>
+      <button class="secondary small" id="syncPick" type="button">Load audio to sync</button>
+      <input type="file" id="syncFile" accept="audio/*,video/*" hidden>
+      <p class="hint">Choose the full song file and the lyrics will highlight as it plays.</p>
+    </div>
+
+    <div id="playerWrap" hidden>
+      <audio id="player" controls></audio>
+      <div class="p-tools">
+        <span>Lyrics timing:</span>
+        <button class="secondary small" id="offMinus" type="button" aria-label="Show lyrics earlier by half a second">Earlier</button>
+        <span id="offsetLabel">0.0 s</span>
+        <button class="secondary small" id="offPlus" type="button" aria-label="Show lyrics later by half a second">Later</button>
+      </div>
+    </div>
+
+    <pre id="lyrics"></pre>
+    <div id="syncBox" hidden></div>
+  </section>
+</main>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const status = $("status");
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : v; } catch { return d; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch {} }
+  };
+  const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  let current = null;        // {title, artist, plain, lrc, lines}
+  let chosenAudio = null;    // File or Blob for recognition
+  let chosenIsFile = false;
+
+  const setStatus = (msg, isError = false) => {
+    status.textContent = msg;
+    status.className = isError ? "error" : "";
+  };
+
+  // ---------- Theme ----------
+  const themeBtn = $("themeBtn");
+  function applyTheme(t) {
+    document.documentElement.dataset.theme = t;
+    themeBtn.setAttribute("aria-pressed", t === "dark");
+    themeBtn.textContent = t === "dark" ? "Light mode" : "Dark mode";
+  }
+  applyTheme(store.get("theme", matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"));
+  themeBtn.addEventListener("click", () => {
+    const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+    store.set("theme", next);
+    applyTheme(next);
+  });
+
+  // ---------- Tabs ----------
+  const tabs = { search: [$("tab-search"), $("panel-search")], audio: [$("tab-audio"), $("panel-audio")] };
+  Object.values(tabs).forEach(([tab]) => {
+    tab.addEventListener("click", () => {
+      Object.values(tabs).forEach(([t, p]) => {
+        const on = t === tab;
+        t.setAttribute("aria-selected", on);
+        p.hidden = !on;
+      });
+      setStatus("");
+    });
+  });
+
+  // ---------- History ----------
+  const loadHistory = () => { try { return JSON.parse(store.get("lyricHistory", "[]")); } catch { return []; } };
+  function addHistory(artist, title) {
+    const list = loadHistory().filter(h => !(h.artist === artist && h.title === title));
+    list.unshift({ artist, title });
+    store.set("lyricHistory", JSON.stringify(list.slice(0, 8)));
+    renderHistory();
+  }
+  function renderHistory() {
+    const list = loadHistory();
+    const box = $("chips");
+    box.innerHTML = "";
+    $("history").hidden = !list.length;
+    list.forEach(h => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "chip";
+      b.innerHTML = "<span></span><small></small>";
+      b.firstChild.textContent = h.title;
+      b.lastChild.textContent = h.artist;
+      b.addEventListener("click", () => getLyrics(h.artist, h.title));
+      box.appendChild(b);
+    });
+  }
+  $("clearHistory").addEventListener("click", () => { store.set("lyricHistory", "[]"); renderHistory(); });
+  renderHistory();
+
+  // ---------- Lyric sources ----------
+  async function fromOvh(artist, title) {
+    const res = await fetch(`https://api.lyrics.ovh/v1/${encodeURIComponent(artist)}/${encodeURIComponent(title)}`);
+    const data = await res.json();
+    return res.ok && data.lyrics ? { plain: data.lyrics } : null;
+  }
+
+  async function fromLrclib(artist, title) {
+    const res = await fetch(`https://lrclib.net/api/get?artist_name=${encodeURIComponent(artist)}&track_name=${encodeURIComponent(title)}`);
+    if (res.ok) {
+      const d = await res.json();
+      if (d.plainLyrics || d.syncedLyrics) return { plain: d.plainLyrics, synced: d.syncedLyrics };
+    }
+    const s = await fetch(`https://lrclib.net/api/search?q=${encodeURIComponent(artist + " " + title)}`);
+    if (!s.ok) return null;
+    const list = await s.json();
+    const hit = list.find(x => x.syncedLyrics) || list.find(x => x.plainLyrics);
+    return hit ? { plain: hit.plainLyrics, synced: hit.syncedLyrics } : null;
+  }
+
+  function parseLrc(lrc) {
+    const lines = [];
+    const stamp = /\[(\d+):(\d+(?:\.\d+)?)\]/g;
+    lrc.split(/\r?\n/).forEach(raw => {
+      const times = [...raw.matchAll(stamp)].map(m => parseInt(m[1], 10) * 60 + parseFloat(m[2]));
+      if (!times.length) return;
+      const text = raw.replace(stamp, "").trim();
+      times.forEach(t => lines.push({ t, text }));
+    });
+    return lines.sort((a, b) => a.t - b.t);
+  }
+
+  async function getLyrics(artist, title) {
+    setStatus(`Looking up lyrics for "${title}"…`);
+    $("lyricsCard").hidden = true;
+    const [a, b] = await Promise.allSettled([fromOvh(artist, title), fromLrclib(artist, title)]);
+    const ovh = a.status === "fulfilled" ? a.value : null;
+    const lrc = b.status === "fulfilled" ? b.value : null;
+
+    const lrcText = lrc && lrc.synced ? lrc.synced : null;
+    const lines = lrcText ? parseLrc(lrcText) : null;
+    let plain = (ovh && ovh.plain) || (lrc && lrc.plain) || null;
+    if (!plain && lines) plain = lines.map(l => l.text).join("\n");
+
+    if (!plain) {
+      setStatus(`No lyrics found for "${title}" by ${artist}. Try another search or a different spelling.`, true);
+      return;
+    }
+    showLyrics({ title, artist, plain: plain.trim(), lrc: lrcText, lines: lines && lines.length ? lines : null });
+    setStatus("");
+  }
+
+  // ---------- Showing lyrics ----------
+  const player = $("player");
+  let audioURL = null, offset = 0, activeIdx = -1;
+
+  function showLyrics(song) {
+    current = song;
+    addHistory(song.artist, song.title);
+    $("lTitle").textContent = song.title;
+    $("lArtist").textContent = song.artist;
+    $("lyrics").textContent = song.plain;
+    $("dlLrcBtn").hidden = !song.lrc;
+
+    // reset sync state
+    player.pause();
+    if (audioURL) { URL.revokeObjectURL(audioURL); audioURL = null; player.removeAttribute("src"); }
+    $("playerWrap").hidden = true;
+    offset = 0; updateOffsetLabel(); activeIdx = -1;
+
+    const hasSync = !!song.lines;
+    $("viewSeg").hidden = !hasSync;
+    $("loadAudioBar").hidden = !hasSync;
+    buildSyncBox();
+    setView("plain");
+
+    // If the person uploaded a full song file for recognition, use it for sync
+    if (hasSync && chosenIsFile && chosenAudio) attachAudio(chosenAudio);
+
+    $("lyricsCard").hidden = false;
+    $("lyricsCard").scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+  }
+
+  function buildSyncBox() {
+    const box = $("syncBox");
+    box.innerHTML = "";
+    if (!current.lines) return;
+    current.lines.forEach((l, i) => {
+      const d = document.createElement("div");
+      d.className = "ln" + (l.text ? "" : " blank");
+      d.textContent = l.text || "";
+      d.dataset.i = i;
+      if (l.text) d.addEventListener("click", () => {
+        if (!audioURL) return;
+        player.currentTime = Math.max(0, l.t - offset);
+        player.play();
+      });
+      box.appendChild(d);
+    });
+  }
+
+  function setView(v) {
+    const synced = v === "synced" && current && current.lines;
+    $("lyrics").hidden = !!synced;
+    $("syncBox").hidden = !synced;
+    $("vPlain").setAttribute("aria-pressed", !synced);
+    $("vSynced").setAttribute("aria-pressed", !!synced);
+  }
+  $("vPlain").addEventListener("click", () => setView("plain"));
+  $("vSynced").addEventListener("click", () => setView("synced"));
+
+  // ---------- Synced playback ----------
+  function attachAudio(blob) {
+    if (audioURL) URL.revokeObjectURL(audioURL);
+    audioURL = URL.createObjectURL(blob);
+    player.src = audioURL;
+    $("playerWrap").hidden = false;
+    $("loadAudioBar").hidden = true;
+    activeIdx = -1;
+    setView("synced");
+  }
+
+  $("syncPick").addEventListener("click", () => $("syncFile").click());
+  $("syncFile").addEventListener("change", e => {
+    const f = e.target.files[0];
+    if (f) attachAudio(f);
+    e.target.value = "";
+  });
+
+  function updateOffsetLabel() {
+    $("offsetLabel").textContent = (offset > 0 ? "+" : "") + offset.toFixed(1) + " s";
+  }
+  $("offMinus").addEventListener("click", () => { offset -= 0.5; updateOffsetLabel(); highlight(true); });
+  $("offPlus").addEventListener("click", () => { offset += 0.5; updateOffsetLabel(); highlight(true); });
+
+  function highlight(force) {
+    if (!current || !current.lines) return;
+    const t = player.currentTime + offset;
+    let idx = -1;
+    const lines = current.lines;
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].t <= t) idx = i; else break;
+    }
+    // skip blank spacer lines
+    while (idx > 0 && !lines[idx].text) idx--;
+    if (idx === activeIdx && !force) return;
+    const box = $("syncBox");
+    const old = box.querySelector(".ln.active");
+    if (old) old.classList.remove("active");
+    activeIdx = idx;
+    if (idx < 0) return;
+    const el = box.children[idx];
+    el.classList.add("active");
+    if (!box.hidden) {
+      box.scrollTo({
+        top: el.offsetTop - box.clientHeight / 2 + el.clientHeight / 2,
+        behavior: reduceMotion ? "auto" : "smooth"
+      });
+    }
+  }
+  player.addEventListener("timeupdate", () => highlight(false));
+  player.addEventListener("seeked", () => highlight(true));
+
+  // ---------- Download / copy ----------
+  function download(name, body, type = "text/plain;charset=utf-8") {
+    const blob = new Blob([body], { type });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = name.replace(/[\\/:*?"<>|]/g, "");
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(a.href);
+  }
+  $("dlBtn").addEventListener("click", () => {
+    if (!current) return;
+    download(`${current.artist} - ${current.title}.txt`, `${current.title}\n${current.artist}\n\n${current.plain}\n`);
+  });
+  $("dlLrcBtn").addEventListener("click", () => {
+    if (!current || !current.lrc) return;
+    download(`${current.artist} - ${current.title}.lrc`, `[ti:${current.title}]\n[ar:${current.artist}]\n${current.lrc}\n`);
+  });
+  $("copyBtn").addEventListener("click", async () => {
+    if (!current) return;
+    try {
+      await navigator.clipboard.writeText(current.plain);
+      setStatus("Lyrics copied.");
+    } catch {
+      setStatus("Copy failed. Select the lyrics and copy them manually.", true);
+    }
+  });
+
+  // ---------- Text search ----------
+  $("searchForm").addEventListener("submit", async e => {
+    e.preventDefault();
+    const q = $("q").value.trim();
+    if (!q) return;
+    const list = $("results");
+    list.innerHTML = "";
+    setStatus("Searching…");
+    try {
+      let songs = [];
+      try {
+        const res = await fetch(`https://api.lyrics.ovh/suggest/${encodeURIComponent(q)}`);
+        const data = await res.json();
+        songs = (data.data || []).slice(0, 10);
+      } catch { /* fall through to second source */ }
+      if (!songs.length) {
+        const res = await fetch(`https://lrclib.net/api/search?q=${encodeURIComponent(q)}`);
+        const data = await res.json();
+        songs = (data || []).slice(0, 10).map(x => ({ title: x.trackName, artist: { name: x.artistName } }));
+      }
+      if (!songs.length) { setStatus(`No songs found for "${q}". Check the spelling or try fewer words.`, true); return; }
+      setStatus("Pick a song to see its lyrics.");
+      const seen = new Set();
+      songs.forEach(s => {
+        const key = (s.artist.name + s.title).toLowerCase();
+        if (seen.has(key)) return;
+        seen.add(key);
+        const li = document.createElement("li");
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.innerHTML = `<span class="r-title"></span><span class="r-artist"></span>`;
+        btn.querySelector(".r-title").textContent = s.title;
+        btn.querySelector(".r-artist").textContent = s.artist.name;
+        btn.addEventListener("click", () => { chosenIsFile = false; getLyrics(s.artist.name, s.title); });
+        li.appendChild(btn);
+        list.appendChild(li);
+      });
+    } catch {
+      setStatus("Search failed. Check your internet connection and try again.", true);
+    }
+  });
+
+  // ---------- Audio input ----------
+  const token = $("token");
+  token.value = store.get("auddToken", "");
+  token.addEventListener("change", () => store.set("auddToken", token.value.trim()));
+
+  const fileInput = $("file");
+  const identifyBtn = $("identifyBtn");
+
+  function setAudio(blob, label, isFile) {
+    chosenAudio = blob;
+    chosenIsFile = isFile;
+    $("fileName").textContent = label;
+    identifyBtn.disabled = !blob;
+  }
+
+  $("pickBtn").addEventListener("click", () => fileInput.click());
+  fileInput.addEventListener("change", () => {
+    const f = fileInput.files[0];
+    if (f) setAudio(f, f.name, true);
+  });
+
+  const drop = $("drop");
+  ["dragenter", "dragover"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add("over"); }));
+  ["dragleave", "drop"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("over"); }));
+  drop.addEventListener("drop", e => {
+    const f = e.dataTransfer.files[0];
+    if (f) setAudio(f, f.name, true);
+  });
+
+  // Recording
+  const recBtn = $("recBtn");
+  let recording = false;
+  recBtn.addEventListener("click", async () => {
+    if (recording) return;
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setStatus("Recording isn't supported in this browser. Upload a file instead.", true);
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const chunks = [];
+      const rec = new MediaRecorder(stream);
+      rec.ondataavailable = e => e.data.size && chunks.push(e.data);
+      rec.onstop = () => {
+        stream.getTracks().forEach(t => t.stop());
+        recording = false;
+        recBtn.disabled = false;
+        recBtn.textContent = "Record 10 seconds";
+        const blob = new Blob(chunks, { type: rec.mimeType || "audio/webm" });
+        setAudio(blob, "Microphone recording (10 s)", false);
+        setStatus("Recording ready. Select Identify song.");
+      };
+      rec.start();
+      recording = true;
+      recBtn.disabled = true;
+      let left = 10;
+      const tick = () => {
+        recBtn.innerHTML = `<span class="rec-dot"></span>Recording… ${left}s`;
+        if (left-- > 0) setTimeout(tick, 1000); else rec.stop();
+      };
+      tick();
+      setStatus("Play the song near your microphone.");
+    } catch {
+      setStatus("Microphone access was blocked. Allow it in your browser settings, or upload a file.", true);
+    }
+  });
+
+  // Identify
+  identifyBtn.addEventListener("click", async () => {
+    const t = token.value.trim();
+    if (!t) { setStatus("Enter your AudD API token first.", true); token.focus(); return; }
+    if (!chosenAudio) return;
+    store.set("auddToken", t);
+
+    identifyBtn.disabled = true;
+    setStatus("Listening to the audio…");
+    $("lyricsCard").hidden = true;
+    try {
+      const fd = new FormData();
+      fd.append("api_token", t);
+      fd.append("file", chosenAudio, chosenAudio.name || "clip.webm");
+      const res = await fetch("https://api.audd.io/", { method: "POST", body: fd });
+      const data = await res.json();
+      if (data.status === "error") {
+        setStatus(`AudD error: ${data.error?.error_message || "request failed"}`, true);
+      } else if (!data.result) {
+        setStatus("No match found. Try a clearer or longer clip, ideally with the chorus.", true);
+      } else {
+        const { artist, title } = data.result;
+        setStatus(`Matched: ${title} by ${artist}.`);
+        await getLyrics(artist, title);
+      }
+    } catch {
+      setStatus("Couldn't reach the recognition service. Check your connection and token.", true);
+    } finally {
+      identifyBtn.disabled = false;
+    }
+  });
+})();
+</script>
+</body>
+</html>

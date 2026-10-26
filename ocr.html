@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Image to text</title>
+<style>
+  :root { --ink:#14202b; --bg:#eef1f5; --card:#fff; --accent:#2f5bea; --line:#d3d9e2; --muted:#5a6776; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:16px/1.5 system-ui, -apple-system, sans-serif; color:var(--ink); background:var(--bg); }
+  main { max-width:720px; margin:0 auto; padding:20px 16px 56px; }
+  h1 { font-size:1.5rem; margin:0 0 4px; }
+  .sub { margin:0 0 18px; color:var(--muted); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:14px; }
+  #drop { text-align:center; border-style:dashed; border-width:2px; }
+  #drop.over { border-color:var(--accent); background:#f3f6ff; }
+  .btns { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin-top:10px; }
+  button, select, label.btn { font:inherit; padding:9px 14px; border-radius:8px; border:1px solid var(--line); background:#fff; color:var(--ink); cursor:pointer; }
+  button.primary, label.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  button:disabled { opacity:.5; cursor:default; }
+  input[type=file] { display:none; }
+  :focus-visible { outline:3px solid #9db4ff; outline-offset:2px; }
+  #preview { max-width:100%; max-height:280px; display:block; margin:0 auto; border-radius:8px; }
+  .opts { display:flex; flex-wrap:wrap; gap:14px; align-items:center; }
+  .opts label { display:flex; gap:8px; align-items:center; }
+  progress { width:100%; height:8px; margin-top:12px; }
+  #status { color:var(--muted); min-height:1.5em; margin-top:8px; }
+  textarea { width:100%; min-height:300px; padding:12px; border:1px solid var(--line); border-radius:8px; font:16px/1.6 Georgia, 'Times New Roman', serif; color:var(--ink); resize:vertical; }
+  .meta { display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px; color:var(--muted); font-size:14px; margin-top:8px; }
+  [hidden] { display:none !important; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Image to text</h1>
+  <p class="sub">Read the text in a photo, screenshot or scan. Everything runs in your browser; your image is never uploaded.</p>
+
+  <div class="card" id="drop">
+    <img id="preview" alt="Selected image" hidden>
+    <div id="hint">Drop an image here, paste one, or pick below.</div>
+    <div class="btns">
+      <label class="btn primary" tabindex="0">Choose image<input type="file" id="file" accept="image/*"></label>
+      <label class="btn" tabindex="0">Take photo<input type="file" id="cam" accept="image/*" capture="environment"></label>
+    </div>
+  </div>
+
+  <div class="card opts">
+    <label>Language
+      <select id="lang">
+        <option value="eng">English</option>
+        <option value="spa">Spanish</option>
+        <option value="fra">French</option>
+        <option value="deu">German</option>
+        <option value="por">Portuguese</option>
+        <option value="ita">Italian</option>
+        <option value="nld">Dutch</option>
+        <option value="rus">Russian</option>
+        <option value="ara">Arabic</option>
+        <option value="hin">Hindi</option>
+        <option value="chi_sim">Chinese (Simplified)</option>
+        <option value="jpn">Japanese</option>
+        <option value="kor">Korean</option>
+      </select>
+    </label>
+    <label><input type="checkbox" id="enhance" checked> Enhance image</label>
+    <button id="run" disabled>Read again</button>
+  </div>
+
+  <progress id="bar" value="0" max="1" hidden></progress>
+  <div id="status" role="status"></div>
+
+  <div class="card" id="result" hidden>
+    <div class="opts" style="margin-bottom:10px">
+      <label>View
+        <select id="view">
+          <option value="tidy">Tidy (joined paragraphs)</option>
+          <option value="raw">As scanned (keep line breaks)</option>
+        </select>
+      </label>
+    </div>
+    <textarea id="text" aria-label="Recognized text" spellcheck="false"></textarea>
+    <div class="meta"><span id="conf"></span><span id="count"></span></div>
+    <div class="btns" style="justify-content:flex-start">
+      <button class="primary" id="copy">Copy text</button>
+      <button id="save">Download .txt</button>
+    </div>
+  </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+let worker = null, workerLang = null, currentImg = null, fileName = 'text';
+let rawText = '', busy = false;
+
+/* ---------- Loading an image ---------- */
+function loadFile(file) {
+  if (!file || !file.type.startsWith('image/')) { $('status').textContent = 'That file is not an image.'; return; }
+  fileName = (file.name || 'text').replace(/\.[^.]+$/, '');
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  img.onload = () => {
+    currentImg = img;
+    $('preview').src = url; $('preview').hidden = false; $('hint').hidden = true;
+    $('run').disabled = false;
+    read();
+  };
+  img.onerror = () => { $('status').textContent = 'Could not open that image.'; };
+  img.src = url;
+}
+
+$('file').onchange = e => loadFile(e.target.files[0]);
+$('cam').onchange = e => loadFile(e.target.files[0]);
+document.addEventListener('paste', e => {
+  const f = [...(e.clipboardData?.files || [])].find(f => f.type.startsWith('image/'));
+  if (f) loadFile(f);
+});
+const drop = $('drop');
+['dragenter', 'dragover'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave', 'drop'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', e => loadFile(e.dataTransfer.files[0]));
+document.querySelectorAll('label.btn').forEach(l => l.addEventListener('keydown', e => {
+  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); l.querySelector('input').click(); }
+}));
+
+/* ---------- Preparing the image ---------- */
+function prepare(img, enhance) {
+  const w0 = img.naturalWidth, h0 = img.naturalHeight, big = Math.max(w0, h0);
+  let s = 1;
+  if (big > 3000) s = 3000 / big;          // shrink huge phone photos
+  else if (big < 1200) s = Math.min(2.5, 1200 / big); // enlarge small images
+  const c = document.createElement('canvas');
+  c.width = Math.round(w0 * s); c.height = Math.round(h0 * s);
+  const ctx = c.getContext('2d', { willReadFrequently: true });
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+  ctx.drawImage(img, 0, 0, c.width, c.height);
+
+  if (enhance) {
+    const d = ctx.getImageData(0, 0, c.width, c.height), px = d.data;
+    const hist = new Uint32Array(256);
+    for (let i = 0; i < px.length; i += 4) {
+      const g = (px[i] * 0.299 + px[i + 1] * 0.587 + px[i + 2] * 0.114) | 0;
+      px[i] = px[i + 1] = px[i + 2] = g; hist[g]++;
+    }
+    // stretch between the 2nd and 98th percentile of brightness
+    const total = c.width * c.height; let acc = 0, lo = 0, hi = 255;
+    for (let i = 0; i < 256; i++) { acc += hist[i]; if (acc >= total * 0.02) { lo = i; break; } }
+    acc = 0;
+    for (let i = 255; i >= 0; i--) { acc += hist[i]; if (acc >= total * 0.02) { hi = i; break; } }
+    const range = Math.max(1, hi - lo);
+    for (let i = 0; i < px.length; i += 4) {
+      const v = Math.max(0, Math.min(255, ((px[i] - lo) * 255) / range));
+      px[i] = px[i + 1] = px[i + 2] = v;
+    }
+    ctx.putImageData(d, 0, 0);
+  }
+  return c;
+}
+
+/* ---------- OCR ---------- */
+async function getWorker(lang) {
+  if (worker && workerLang === lang) return worker;
+  if (worker) { await worker.terminate(); worker = null; }
+  $('status').textContent = 'Loading language data…';
+  worker = await Tesseract.createWorker(lang, 1, {
+    logger: m => {
+      if (m.status === 'recognizing text') {
+        $('bar').value = m.progress;
+        $('status').textContent = `Reading text… ${Math.round(m.progress * 100)}%`;
+      }
+    }
+  });
+  workerLang = lang;
+  return worker;
+}
+
+async function read() {
+  if (!currentImg || busy) return;
+  busy = true; $('run').disabled = true;
+  $('bar').hidden = false; $('bar').value = 0;
+  try {
+    const w = await getWorker($('lang').value);
+    const { data } = await w.recognize(prepare(currentImg, $('enhance').checked));
+    rawText = data.text.replace(/\f/g, '').trim();
+    showText();
+    $('result').hidden = false;
+    $('conf').textContent = rawText ? `Confidence about ${Math.round(data.confidence)}%` : '';
+    $('status').textContent = rawText ? 'Done. You can edit the text below.' : 'No text found. Try a sharper, well-lit image.';
+  } catch (e) {
+    console.error(e);
+    $('status').textContent = 'Something went wrong: ' + e.message;
+  }
+  $('bar').hidden = true; busy = false; $('run').disabled = false;
+}
+
+/* ---------- Cleaning up the text ---------- */
+function tidy(t) {
+  return t.replace(/\r/g, '')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/ *\n */g, '\n')
+    .replace(/(\w)-\n(\w)/g, '$1$2')       // rejoin words split across lines
+    .split(/\n{2,}/)
+    .map(p => p.replace(/\n/g, ' ').trim())
+    .filter(Boolean)
+    .join('\n\n');
+}
+
+function showText() {
+  $('text').value = $('view').value === 'tidy' ? tidy(rawText) : rawText.replace(/[ \t]+/g, ' ');
+  updateCount();
+}
+function updateCount() {
+  const t = $('text').value.trim();
+  $('count').textContent = t ? `${t.split(/\s+/).length} words` : '';
+}
+
+/* ---------- Actions ---------- */
+$('run').onclick = read;
+$('lang').onchange = () => { if (currentImg) read(); };
+$('enhance').onchange = () => { if (currentImg) read(); };
+$('view').onchange = showText;
+$('text').addEventListener('input', updateCount);
+$('copy').onclick = async () => {
+  try { await navigator.clipboard.writeText($('text').value); $('status').textContent = 'Copied to clipboard.'; }
+  catch { $('text').select(); $('status').textContent = 'Press copy on the selected text.'; }
+};
+$('save').onclick = () => {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([$('text').value], { type: 'text/plain' }));
+  a.download = fileName + '.txt'; a.click(); URL.revokeObjectURL(a.href);
+};
+</script>
+</body>
+</html>

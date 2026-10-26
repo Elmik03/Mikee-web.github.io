@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Upgrade Books Reader v1.1</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+:root{--bg:#101827;--gold:#f0b429;--paper:#fbf8ef;--text:#fff;--muted:#aab4c0}
+*{box-sizing:border-box}body{margin:0;height:100vh;background:radial-gradient(circle,#334155,#0f172a);font-family:system-ui;color:var(--text);overflow:hidden}
+button{cursor:pointer;font:inherit}.btn{background:var(--gold);border:0;padding:10px 18px;border-radius:6px;font-weight:700}
+.alt{background:none;color:white;border:1px solid #64748b;padding:8px 14px;border-radius:6px}
+#home,#reader{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center}
+#reader{display:none}
+.card{text-align:center;padding:25px}.drop{border:2px dashed #64748b;padding:45px;border-radius:12px}
+.stage{flex:1;width:100%;display:flex;justify-content:center;align-items:center;perspective:2200px}
+#book{position:relative;transform-style:preserve-3d;transition:.3s}
+.sheet{position:absolute;left:50%;transform-origin:left center;transform-style:preserve-3d;transition:transform .8s cubic-bezier(.45,.05,.25,1)}
+.sheet.flipped{transform:rotateY(-180deg)}
+.face{position:absolute;inset:0;background:var(--paper);overflow:hidden;backface-visibility:hidden}
+.face.back{transform:rotateY(180deg)}
+canvas{width:100%;height:100%}
+header,footer{width:100%;display:flex;justify-content:center;gap:10px;padding:15px}
+.zone{position:absolute;top:0;width:50%;height:100%;background:none;border:0;z-index:5}
+.left{left:0}.right{right:0}
+#bar{color:var(--muted)}
+#searchBox{display:none;position:absolute;top:60px;background:#111827;padding:15px;border-radius:8px}
+</style>
+</head>
+<body>
+<section id="home">
+<div class="card">
+<h1>Upgrade Books</h1>
+<p>Read. Learn. Grow.</p>
+<div class="drop">
+<p>Select your PDF</p>
+<button class="btn" id="open">Open Book</button>
+<input id="file" hidden type="file" accept="application/pdf">
+</div>
+<p id="status"></p>
+</div>
+</section>
+
+<section id="reader">
+<header>
+<span id="title"></span>
+<button class="alt" id="fullscreen">⛶</button>
+<button class="alt" id="searchBtn">🔍</button>
+<button class="alt" id="library">New</button>
+</header>
+<div id="searchBox">
+<input id="query" placeholder="Search text">
+<button class="btn" id="doSearch">Find</button>
+</div>
+<div class="stage"><div id="book">
+<button class="zone left" id="prev"></button>
+<button class="zone right" id="next"></button>
+</div></div>
+<footer>
+<button class="alt" id="back">◀</button>
+<span id="bar"></span>
+<button class="alt" id="forward">▶</button>
+<button class="alt" id="bookmark">🔖</button>
+<button class="alt" id="zoom">＋ Zoom</button>
+</footer>
+</section>
+
+<script>
+(()=>{
+pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+const $=id=>document.getElementById(id);
+let pdf=null,total=0,current=0,sheets=[],scale=1,cache=new Set();
+
+$('open').onclick=()=>$('file').click();
+$('file').onchange=e=>load(e.target.files[0]);
+$('library').onclick=()=>location.reload();
+$('fullscreen').onclick=()=>document.documentElement.requestFullscreen?.();
+
+async function load(file){
+$('status').textContent="Loading...";
+pdf=await pdfjsLib.getDocument({data:await file.arrayBuffer()}).promise;
+total=Math.ceil(pdf.numPages/2);
+$('title').textContent=file.name;
+$('home').style.display="none";
+$('reader').style.display="flex";
+create();
+restore();
+renderNearby();
+update();
+}
+
+function create(){
+for(let i=0;i<total;i++){
+let s=document.createElement('div');s.className='sheet';
+s.style.width='420px';s.style.height='600px';
+for(let j=1;j<=2;j++){
+let f=document.createElement('div');
+f.className='face'+(j==2?' back':'');
+f.dataset.page=i*2+j;
+s.appendChild(f)
+}
+$('book').appendChild(s);sheets.push(s)
+}
+resize();
+window.onresize=resize;
+}
+
+function resize(){
+let w=Math.min(innerWidth*.8,800);
+let h=Math.min(innerHeight*.75,650);
+sheets.forEach(s=>{s.style.width=w/2+'px';s.style.height=h+'px';s.querySelectorAll('.face').forEach(f=>{f.style.width=w/2+'px';f.style.height=h+'px'})})
+}
+
+async function renderPage(n){
+if(n<1||n>pdf.numPages||cache.has(n))return;
+let face=[...document.querySelectorAll('.face')].find(x=>+x.dataset.page===n);
+if(!face)return;
+cache.add(n);
+let page=await pdf.getPage(n);
+let vp=page.getViewport({scale:1.5});
+let c=document.createElement('canvas');c.width=vp.width;c.height=vp.height;
+await page.render({canvasContext:c.getContext('2d'),viewport:vp}).promise;
+face.append(c);
+cleanup();
+}
+
+function cleanup(){
+let keep=[];
+for(let i=Math.max(1,current*2-4);i<=current*2+6;i++)keep.push(i);
+document.querySelectorAll('.face').forEach(f=>{
+let n=+f.dataset.page;
+if(!keep.includes(n)){f.innerHTML='';cache.delete(n)}
+})
+}
+
+function renderNearby(){
+for(let i=current*2-2;i<=current*2+5;i++)renderPage(i)
+}
+
+function update(){
+sheets.forEach((s,i)=>s.classList.toggle('flipped',i<current));
+$('bar').textContent=`Pages ${Math.min(current*2+1,pdf.numPages)} / ${pdf.numPages}`;
+localStorage.setItem('upgradeBookPosition',current);
+renderNearby();
+}
+
+function move(n){current=Math.max(0,Math.min(total,current+n));update()}
+$('next').onclick=$('forward').onclick=()=>move(1);
+$('prev').onclick=$('back').onclick=()=>move(-1);
+
+$('zoom').onclick=()=>{scale=scale===1?1.25:1;$('book').style.transform=`scale(${scale})`};
+
+$('bookmark').onclick=()=>{
+localStorage.setItem('upgradeBookmark',current);
+alert('Bookmark saved');
+}
+
+function restore(){
+current=+(localStorage.getItem('upgradeBookPosition')||0)
+}
+
+$('searchBtn').onclick=()=>$('searchBox').style.display='block';
+$('doSearch').onclick=async()=>{
+let q=$('query').value.toLowerCase();let found=[];
+for(let i=1;i<=pdf.numPages;i++){
+let text=await (await pdf.getPage(i)).getTextContent();
+if(text.items.map(x=>x.str).join(' ').toLowerCase().includes(q))found.push(i)
+}
+alert(found.length?'Found on pages: '+found.join(', '):'No matches')
+}
+})();
+</script>
+</body>
+</html>

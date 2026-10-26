@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Roomboard</title>
+<style>
+:root{--ink:#1B2A41;--bg:#E6EBF1;--line:#C5CEDA;--accent:#2F6BFF;--muted:#5C6B80}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%}
+body{display:flex;flex-direction:column;height:100vh;height:100dvh;min-height:560px;background:var(--bg);color:var(--ink);
+  font:500 14px/1.3 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overscroll-behavior:none;user-select:none;-webkit-user-select:none}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+header{display:flex;align-items:center;gap:10px;padding:8px 12px;background:#fff;border-bottom:1px solid var(--line)}
+.brand{font-weight:800;font-size:16px;letter-spacing:-.02em;margin-right:auto}
+.room{display:flex;align-items:center;gap:6px}
+.room label{color:var(--muted);font-size:13px}
+.room input{width:84px;padding:7px 8px;border:1px solid var(--line);border-radius:8px;font:700 14px ui-monospace,Menlo,monospace;
+  letter-spacing:.08em;text-transform:uppercase;color:var(--ink);background:#fff;user-select:text;-webkit-user-select:text}
+.room button{padding:7px 12px;border:0;border-radius:8px;background:var(--ink);color:#fff;font-weight:600}
+.status{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:13px;white-space:nowrap}
+.status i{width:8px;height:8px;border-radius:50%;background:#9AA6B5;display:inline-block}
+.status i.ok{background:#1F9D6B}.status i.err{background:#E5484D}
+.icon{width:36px;height:36px;border:1px solid var(--line);border-radius:8px;background:#fff;display:grid;place-items:center}
+
+main{position:relative;flex:1;min-height:0;display:grid;place-items:center;overflow:hidden;padding:10px}
+canvas{background:#fff;border-radius:6px;box-shadow:0 0 0 1px var(--line),0 6px 24px rgba(27,42,65,.08);touch-action:none;cursor:crosshair;display:block}
+#hint{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;text-align:center;padding:24px}
+#hint div{max-width:260px;color:var(--muted);line-height:1.5}
+#hint b{display:block;color:var(--ink);font-size:18px;margin-bottom:4px;letter-spacing:-.01em}
+#hint[hidden]{display:none}
+
+.bar{display:flex;flex-wrap:wrap;justify-content:center;gap:6px 14px;padding:8px 10px calc(8px + env(safe-area-inset-bottom));background:#fff;border-top:1px solid var(--line)}
+.grp{display:flex;align-items:center;gap:4px}
+.tool,.act,.sz{width:42px;height:42px;border:1px solid transparent;border-radius:10px;background:transparent;display:grid;place-items:center}
+.tool[aria-pressed=true],.sz[aria-pressed=true]{background:var(--ink);color:#fff}
+.act.armed{background:#E5484D;color:#fff;width:auto;padding:0 12px;font-weight:600}
+.sw{width:30px;height:30px;border-radius:50%;border:0;box-shadow:inset 0 0 0 1px rgba(0,0,0,.15);position:relative;margin:0 2px}
+.sw[aria-pressed=true]::after{content:"";position:absolute;inset:-5px;border-radius:50%;border:2px solid var(--ink)}
+.sz i{display:block;border-radius:50%;background:currentColor}
+svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+@media (max-width:420px){.room label{display:none}.brand{font-size:15px}.room input{width:72px}}
+</style>
+</head>
+<body>
+<header>
+  <span class="brand">Roomboard</span>
+  <div class="room">
+    <label for="code">Room</label>
+    <input id="code" maxlength="8" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Room code">
+    <button id="join">Join</button>
+  </div>
+  <div class="status" aria-live="polite"><i id="dot"></i><span id="stat">Connecting</span></div>
+  <button class="icon" id="exp" aria-label="Download as PNG"><svg viewBox="0 0 24 24"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg></button>
+</header>
+
+<main id="stage">
+  <canvas id="cv" aria-label="Shared whiteboard"></canvas>
+  <div id="hint"><div><b>Draw anywhere</b>Share the room code so others can join. Anyone with the code can see and edit this board.</div></div>
+</main>
+
+<nav class="bar" aria-label="Drawing tools">
+  <div class="grp" role="group" aria-label="Tools">
+    <button class="tool" data-tool="pen" aria-label="Pen" aria-pressed="true"><svg viewBox="0 0 24 24"><path d="M17 3a2.85 2.83 0 114 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
+    <button class="tool" data-tool="line" aria-label="Line" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M5 19L19 5"/></svg></button>
+    <button class="tool" data-tool="rect" aria-label="Rectangle" aria-pressed="false"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="1"/></svg></button>
+    <button class="tool" data-tool="ellipse" aria-label="Ellipse" aria-pressed="false"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="9" ry="7"/></svg></button>
+    <button class="tool" data-tool="eraser" aria-label="Eraser" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/></svg></button>
+  </div>
+  <div class="grp" role="group" aria-label="Colors" id="colors"></div>
+  <div class="grp" role="group" aria-label="Stroke size">
+    <button class="sz" data-size="4" aria-label="Thin" aria-pressed="false"><i style="width:4px;height:4px"></i></button>
+    <button class="sz" data-size="8" aria-label="Medium" aria-pressed="true"><i style="width:8px;height:8px"></i></button>
+    <button class="sz" data-size="16" aria-label="Thick" aria-pressed="false"><i style="width:14px;height:14px"></i></button>
+  </div>
+  <div class="grp">
+    <button class="act" id="undo" aria-label="Undo"><svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 010 11H11"/></svg></button>
+    <button class="act" id="clear" aria-label="Clear board"><svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></button>
+  </div>
+</nav>
+
+<script>
+(() => {
+  const BW = 1000, BH = 800, GRID = 40;
+  const COLORS = ['#1B2A41', '#E5484D', '#2F6BFF', '#1F9D6B', '#F2A900'];
+  const $ = s => document.querySelector(s);
+  const cv = $('#cv'), ctx = cv.getContext('2d'), stage = $('#stage');
+  const store = window.storage || null;
+
+  const uid = Math.random().toString(36).slice(2, 8);
+  let room = '';
+  let tool = 'pen', color = COLORS[0], size = 8;
+  let scale = 1, dpr = 1;
+
+  const mine = { strokes: [], erased: [] };
+  const remote = new Map(), remoteRaw = new Map();
+  let history = [];
+  let current = null, erasing = null;
+  let dirty = false, writing = false, pendingFrame = false;
+  let polling = false;
+
+  /* ---------- status ---------- */
+  function setStatus(kind, text) {
+    $('#dot').className = kind;
+    $('#stat').textContent = text;
+  }
+  let here = 1;
+  function statusOk() { setStatus('ok', here > 1 ? `${here} here` : 'Live, just you'); }
+
+  /* ---------- data helpers ---------- */
+  const key = s => `b-${room}:${s}`;
+  function allStrokes() {
+    const erased = new Set(mine.erased);
+    const list = mine.strokes.slice();
+    remote.forEach(d => { (d.erased || []).forEach(i => erased.add(i)); list.push(...(d.strokes || [])); });
+    return list.filter(s => !erased.has(s.id)).sort((a, b) => a.t - b.t);
+  }
+
+  /* ---------- drawing ---------- */
+  function drawStroke(c, s) {
+    const p = s.pts;
+    c.strokeStyle = s.color; c.fillStyle = s.color; c.lineWidth = s.w;
+    c.lineCap = 'round'; c.lineJoin = 'round';
+    c.beginPath();
+    if (s.type === 'pen') {
+      if (p.length === 1) { c.arc(p[0][0], p[0][1], s.w / 2, 0, Math.PI * 2); c.fill(); return; }
+      c.moveTo(p[0][0], p[0][1]);
+      for (let i = 1; i < p.length - 1; i++) {
+        c.quadraticCurveTo(p[i][0], p[i][1], (p[i][0] + p[i + 1][0]) / 2, (p[i][1] + p[i + 1][1]) / 2);
+      }
+      c.lineTo(p[p.length - 1][0], p[p.length - 1][1]);
+    } else if (s.type === 'line') {
+      c.moveTo(p[0][0], p[0][1]); c.lineTo(p[1][0], p[1][1]);
+    } else if (s.type === 'rect') {
+      c.rect(Math.min(p[0][0], p[1][0]), Math.min(p[0][1], p[1][1]), Math.abs(p[1][0] - p[0][0]), Math.abs(p[1][1] - p[0][1]));
+    } else if (s.type === 'ellipse') {
+      const cx = (p[0][0] + p[1][0]) / 2, cy = (p[0][1] + p[1][1]) / 2;
+      c.ellipse(cx, cy, Math.abs(p[1][0] - p[0][0]) / 2 || .5, Math.abs(p[1][1] - p[0][1]) / 2 || .5, 0, 0, Math.PI * 2);
+    }
+    c.stroke();
+  }
+
+  function redraw() {
+    if (pendingFrame) return;
+    pendingFrame = true;
+    requestAnimationFrame(() => {
+      pendingFrame = false;
+      ctx.setTransform(scale * dpr, 0, 0, scale * dpr, 0, 0);
+      ctx.clearRect(0, 0, BW, BH);
+      ctx.fillStyle = '#D3DAE4';
+      for (let x = GRID; x < BW; x += GRID) for (let y = GRID; y < BH; y += GRID) ctx.fillRect(x - 1.5, y - 1.5, 3, 3);
+      const list = allStrokes();
+      list.forEach(s => drawStroke(ctx, s));
+      if (current) drawStroke(ctx, current);
+      $('#hint').hidden = list.length > 0 || !!current;
+    });
+  }
+
+  function resize() {
+    const r = stage.getBoundingClientRect();
+    const availW = r.width - 20, availH = r.height - 20;
+    scale = Math.min(availW / BW, availH / BH, 1.6);
+    dpr = window.devicePixelRatio || 1;
+    cv.style.width = BW * scale + 'px';
+    cv.style.height = BH * scale + 'px';
+    cv.width = Math.round(BW * scale * dpr);
+    cv.height = Math.round(BH * scale * dpr);
+    redraw();
+  }
+  new ResizeObserver(resize).observe(stage);
+
+  /* ---------- hit testing (eraser) ---------- */
+  function outline(s) {
+    const p = s.pts;
+    if (s.type === 'pen' || s.type === 'line') return p;
+    const a = p[0], b = p[1];
+    if (s.type === 'rect') return [[a[0], a[1]], [b[0], a[1]], [b[0], b[1]], [a[0], b[1]], [a[0], a[1]]];
+    const cx = (a[0] + b[0]) / 2, cy = (a[1] + b[1]) / 2, rx = Math.abs(b[0] - a[0]) / 2, ry = Math.abs(b[1] - a[1]) / 2;
+    const o = [];
+    for (let i = 0; i <= 48; i++) { const t = i / 48 * Math.PI * 2; o.push([cx + rx * Math.cos(t), cy + ry * Math.sin(t)]); }
+    return o;
+  }
+  function distSeg(px, py, a, b) {
+    const dx = b[0] - a[0], dy = b[1] - a[1], l = dx * dx + dy * dy;
+    let t = l ? ((px - a[0]) * dx + (py - a[1]) * dy) / l : 0;
+    t = Math.max(0, Math.min(1, t));
+    return Math.hypot(px - (a[0] + t * dx), py - (a[1] + t * dy));
+  }
+  function hits(s, x, y, r) {
+    const o = outline(s), rr = r + s.w / 2;
+    if (o.length === 1) return Math.hypot(x - o[0][0], y - o[0][1]) <= rr;
+    for (let i = 0; i < o.length - 1; i++) if (distSeg(x, y, o[i], o[i + 1]) <= rr) return true;
+    return false;
+  }
+  function eraseAt(x, y) {
+    let changed = false;
+    allStrokes().forEach(s => {
+      if (hits(s, x, y, 14)) { mine.erased.push(s.id); erasing.push(s.id); changed = true; }
+    });
+    if (changed) { redraw(); }
+  }
+
+  /* ---------- pointer input ---------- */
+  const pt = e => {
+    const r = cv.getBoundingClientRect();
+    return [Math.round((e.clientX - r.left) / scale), Math.round((e.clientY - r.top) / scale)];
+  };
+  cv.addEventListener('pointerdown', e => {
+    if (!room) return;
+    cv.setPointerCapture(e.pointerId);
+    const p = pt(e);
+    if (tool === 'eraser') { erasing = []; eraseAt(p[0], p[1]); return; }
+    current = { id: uid + Date.now().toString(36), t: Date.now(), type: tool, color, w: size,
+                pts: tool === 'pen' ? [p] : [p, p] };
+    redraw();
+  });
+  cv.addEventListener('pointermove', e => {
+    const p = pt(e);
+    if (erasing) { eraseAt(p[0], p[1]); return; }
+    if (!current) return;
+    if (current.type === 'pen') {
+      const l = current.pts[current.pts.length - 1];
+      if (Math.hypot(p[0] - l[0], p[1] - l[1]) < 2) return;
+      current.pts.push(p);
+    } else current.pts[1] = p;
+    redraw();
+  });
+  function endStroke() {
+    if (erasing) {
+      if (erasing.length) { history.push({ k: 'erase', ids: erasing }); markDirty(); }
+      erasing = null; return;
+    }
+    if (!current) return;
+    const s = current; current = null;
+    const p = s.pts;
+    const tiny = s.type !== 'pen' && Math.hypot(p[1][0] - p[0][0], p[1][1] - p[0][1]) < 4;
+    if (!tiny) { mine.strokes.push(s); history.push({ k: 'stroke', id: s.id }); markDirty(); }
+    redraw();
+  }
+  cv.addEventListener('pointerup', endStroke);
+  cv.addEventListener('pointercancel', endStroke);
+
+  /* ---------- toolbar ---------- */
+  document.querySelectorAll('.tool').forEach(b => b.addEventListener('click', () => {
+    tool = b.dataset.tool;
+    document.querySelectorAll('.tool').forEach(x => x.setAttribute('aria-pressed', x === b));
+    cv.style.cursor = tool === 'eraser' ? 'cell' : 'crosshair';
+  }));
+  const colorsEl = $('#colors');
+  COLORS.forEach((c, i) => {
+    const b = document.createElement('button');
+    b.className = 'sw'; b.style.background = c; b.setAttribute('aria-label', 'Color ' + c);
+    b.setAttribute('aria-pressed', i === 0);
+    b.addEventListener('click', () => {
+      color = c;
+      colorsEl.querySelectorAll('.sw').forEach(x => x.setAttribute('aria-pressed', x === b));
+      if (tool === 'eraser') document.querySelector('[data-tool=pen]').click();
+    });
+    colorsEl.appendChild(b);
+  });
+  document.querySelectorAll('.sz').forEach(b => b.addEventListener('click', () => {
+    size = +b.dataset.size;
+    document.querySelectorAll('.sz').forEach(x => x.setAttribute('aria-pressed', x === b));
+  }));
+
+  function undo() {
+    const a = history.pop();
+    if (!a) return;
+    if (a.k === 'stroke') mine.strokes = mine.strokes.filter(s => s.id !== a.id);
+    else mine.erased = mine.erased.filter(id => !a.ids.includes(id));
+    markDirty(); redraw();
+  }
+  $('#undo').addEventListener('click', undo);
+  document.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && document.activeElement.tagName !== 'INPUT') { e.preventDefault(); undo(); }
+  });
+
+  let clearTimer;
+  const clearBtn = $('#clear'), clearIcon = clearBtn.innerHTML;
+  clearBtn.addEventListener('click', () => {
+    if (!clearBtn.classList.contains('armed')) {
+      clearBtn.classList.add('armed'); clearBtn.textContent = 'Tap again to clear';
+      clearTimer = setTimeout(disarm, 3000); return;
+    }
+    const ids = allStrokes().map(s => s.id);
+    if (ids.length) { mine.erased.push(...ids); history.push({ k: 'erase', ids }); markDirty(); redraw(); }
+    disarm();
+  });
+  function disarm() { clearTimeout(clearTimer); clearBtn.classList.remove('armed'); clearBtn.innerHTML = clearIcon; }
+
+  $('#exp').addEventListener('click', () => {
+    const o = document.createElement('canvas'); o.width = BW; o.height = BH;
+    const c = o.getContext('2d'); c.fillStyle = '#fff'; c.fillRect(0, 0, BW, BH);
+    allStrokes().forEach(s => drawStroke(c, s));
+    o.toBlob(b => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(b); a.download = `roomboard-${room}.png`;
+      document.body.appendChild(a); a.click(); a.remove();
+    });
+  });
+
+  /* ---------- sync ---------- */
+  function markDirty() { dirty = true; flush(); }
+  async function flush() {
+    if (!store || !dirty || writing || !room) return;
+    writing = true; dirty = false;
+    let failed = false;
+    try {
+      await store.set(key('u-' + uid), JSON.stringify({ strokes: mine.strokes, erased: mine.erased }), true);
+      statusOk();
+    } catch (e) { failed = true; dirty = true; setStatus('err', 'Retrying'); }
+    writing = false;
+    if (dirty && !failed) flush();
+  }
+  async function sGet(k) {
+    try { const r = await store.get(k, true); return r ? r.value : null; } catch (e) { return null; }
+  }
+  async function poll() {
+    if (!store || !room || polling) return;
+    polling = true;
+    const r = room;
+    try {
+      const res = await store.list(`b-${r}:`, true);
+      const keys = ((res && res.keys) || []).map(k => typeof k === 'string' ? k : k.key);
+      let changed = false, count = 1;
+      const now = Date.now();
+      await Promise.all(keys.filter(k => k.includes(':u-') && !k.endsWith(':u-' + uid)).map(async k => {
+        const v = await sGet(k);
+        if (v != null && remoteRaw.get(k) !== v) {
+          try { remote.set(k, JSON.parse(v)); remoteRaw.set(k, v); changed = true; } catch (e) {}
+        }
+      }));
+      await Promise.all(keys.filter(k => k.includes(':p-') && !k.endsWith(':p-' + uid)).map(async k => {
+        const v = await sGet(k);
+        if (v != null && now - Number(v) < 15000) count++;
+      }));
+      if (r !== room) return;
+      here = count;
+      if (changed) redraw();
+      if (!dirty) statusOk();
+    } catch (e) { setStatus('err', 'Reconnecting'); }
+    polling = false;
+  }
+  async function beat() {
+    if (!store || !room) return;
+    try { await store.set(key('p-' + uid), String(Date.now()), true); } catch (e) {}
+  }
+  setInterval(poll, 3000);
+  setInterval(beat, 5000);
+
+  /* ---------- rooms ---------- */
+  function join(raw) {
+    const code = (raw || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
+    if (!code) return;
+    room = code;
+    mine.strokes = []; mine.erased = []; history = [];
+    remote.clear(); remoteRaw.clear(); here = 1; current = null; erasing = null;
+    $('#code').value = code;
+    redraw();
+    if (!store) { setStatus('', 'Local only'); return; }
+    setStatus('', 'Connecting');
+    polling = false;
+    beat(); poll();
+  }
+  $('#join').addEventListener('click', () => join($('#code').value));
+  $('#code').addEventListener('keydown', e => { if (e.key === 'Enter') join(e.target.value); });
+
+  const letters = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  join(Array.from({ length: 4 }, () => letters[Math.floor(Math.random() * letters.length)]).join(''));
+})();
+</script>
+</body>
+</html>

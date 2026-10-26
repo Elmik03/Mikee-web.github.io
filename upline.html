@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Upline by Upgrade</title>
+<meta name="description" content="Turn a team report into a clear tree. Search any ID to see just their downline.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='10' fill='%2314181f'/%3E%3Cpath d='M20 13v7M11 26v-6h18v6' stroke='%23b7f34f' stroke-width='2.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Crect x='15' y='6' width='10' height='7' rx='2.5' fill='%23b7f34f'/%3E%3Crect x='6' y='26' width='10' height='7' rx='2.5' fill='%23b7f34f'/%3E%3Crect x='24' y='26' width='10' height='7' rx='2.5' fill='%23b7f34f'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #f4f5ef;
+    --surface: #ffffff;
+    --ink: #14181f;
+    --muted: #5b6470;
+    --line: #dde0d3;
+    --accent: #2b7a3d;
+    --accent-ink: #ffffff;
+    --soft: #eef1e6;
+    --logo-bg: #14181f;
+    --logo-fg: #b7f34f;
+    --danger: #b3321d;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117;
+      --surface: #151b23;
+      --ink: #e8edf3;
+      --muted: #8b97a6;
+      --line: #263040;
+      --accent: #b7f34f;
+      --accent-ink: #0d1a00;
+      --soft: #1b2430;
+      --logo-bg: #b7f34f;
+      --logo-fg: #0d1117;
+      --danger: #ff917b;
+      color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.55 "Avenir Next", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+  }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  [hidden] { display: none !important; }
+  .wrap { max-width: 920px; margin: 0 auto; padding: 0 16px; }
+
+  .top { padding: 14px 0; padding-top: max(14px, env(safe-area-inset-top)); }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand svg { display: block; }
+  .brand .name { font-weight: 800; font-size: 1.25rem; letter-spacing: -0.02em; line-height: 1; }
+  .brand .by { font-size: 0.78rem; color: var(--muted); letter-spacing: 0.02em; margin-top: 3px; }
+  .brand b { color: var(--ink); font-weight: 700; }
+
+  .hero { padding: 26px 0 18px; }
+  .hero h1 {
+    margin: 0 0 10px; font-size: clamp(1.9rem, 6vw, 2.9rem);
+    line-height: 1.08; letter-spacing: -0.035em; font-weight: 800; max-width: 16ch;
+  }
+  .hero h1 span { color: var(--accent); }
+  .hero p { margin: 0; color: var(--muted); max-width: 52ch; }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: 16px; padding: 16px; margin-bottom: 16px;
+  }
+  .tabs { display: flex; gap: 6px; overflow-x: auto; margin-bottom: 14px; padding-bottom: 2px; }
+  .tab {
+    flex: 0 0 auto; background: transparent; border: 1px solid var(--line);
+    border-radius: 999px; padding: 7px 14px; cursor: pointer; white-space: nowrap; font-weight: 600; font-size: 0.92rem;
+  }
+  .tab[aria-selected="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+
+  .drop {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+    text-align: center; padding: 30px 16px; cursor: pointer;
+    border: 2px dashed var(--line); border-radius: 14px; background: var(--soft);
+  }
+  .drop:hover, .drop.over { border-color: var(--accent); }
+  .drop strong { font-size: 1.05rem; }
+  .drop small { color: var(--muted); }
+  textarea.big {
+    width: 100%; min-height: 150px; resize: vertical; padding: 12px;
+    background: var(--bg); border: 1px solid var(--line); border-radius: 12px;
+    font: 0.9rem/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  .help { margin: 0 0 8px; color: var(--muted); font-size: 0.9rem; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
+  .btn {
+    background: transparent; border: 1px solid var(--line); border-radius: 10px;
+    padding: 8px 14px; cursor: pointer; font-weight: 600; font-size: 0.92rem; text-decoration: none; color: var(--ink);
+    display: inline-block;
+  }
+  .btn:hover { border-color: var(--accent); }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .btn.primary:hover { filter: brightness(1.08); }
+  .linkbtn { background: none; border: 0; padding: 0; color: var(--accent); cursor: pointer; font-weight: 600; text-decoration: underline; }
+  #msg { margin: 12px 0 0; min-height: 1.3em; font-size: 0.92rem; color: var(--muted); }
+  #msg.bad { color: var(--danger); }
+
+  .search { display: flex; gap: 8px; flex-wrap: wrap; }
+  .search input[type="text"] {
+    flex: 1 1 200px; min-width: 0; padding: 10px 12px; background: var(--bg);
+    border: 1px solid var(--line); border-radius: 10px;
+  }
+  #matches { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  #matches button { background: var(--soft); border: 1px solid var(--line); border-radius: 8px; padding: 4px 10px; cursor: pointer; font-size: 0.85rem; }
+  #search-msg { margin: 8px 0 0; font-size: 0.88rem; color: var(--muted); }
+  .opts { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 14px; align-items: center; font-size: 0.92rem; }
+  .opts label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+  .opts .lbl { color: var(--muted); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  .opts select { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px; }
+  input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px; }
+
+  .viewbar { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin: 16px 0 10px; }
+  #count { font-weight: 700; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .seg button { background: transparent; border: 0; padding: 6px 14px; cursor: pointer; font-weight: 600; }
+  .seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+
+  #chart-box { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 10px; overflow: auto; text-align: center; min-height: 120px; }
+  #chart-box img { max-width: 100%; height: auto; }
+  #chart-box.full img { max-width: none; }
+  #chart-status { color: #5b6470; padding: 28px 0; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+
+  .tablebox { overflow: auto; border: 1px solid var(--line); border-radius: 12px; max-height: 70vh; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.88rem; }
+  th, td { padding: 8px 10px; text-align: left; white-space: nowrap; border-bottom: 1px solid var(--line); }
+  th { position: sticky; top: 0; background: var(--soft); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tbody tr { cursor: pointer; }
+  tbody tr:hover { background: var(--soft); }
+  tbody tr.root { background: var(--soft); font-weight: 700; }
+  .tip { margin: 8px 0 0; font-size: 0.82rem; color: var(--muted); }
+
+  footer { padding: 18px 0 max(28px, env(safe-area-inset-bottom)); color: var(--muted); font-size: 0.82rem; }
+  footer b { color: var(--ink); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div class="brand">
+      <svg width="38" height="38" viewBox="0 0 40 40" role="img" aria-label="Upline logo">
+        <rect width="40" height="40" rx="10" fill="var(--logo-bg)"/>
+        <path d="M20 13v7M11 26v-6h18v6" stroke="var(--logo-fg)" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <rect x="15" y="6" width="10" height="7" rx="2.5" fill="var(--logo-fg)"/>
+        <rect x="6" y="26" width="10" height="7" rx="2.5" fill="var(--logo-fg)"/>
+        <rect x="24" y="26" width="10" height="7" rx="2.5" fill="var(--logo-fg)"/>
+      </svg>
+      <div>
+        <div class="name">Upline</div>
+        <div class="by">by <b>Upgrade</b></div>
+      </div>
+    </div>
+  </header>
+
+  <section class="hero">
+    <h1>See your whole team <span>at a glance.</span></h1>
+    <p>Upload your genealogy report and get a clean, shareable tree. Search any ID to see only that person and everyone below them.</p>
+  </section>
+
+  <section class="card" aria-label="Load your team">
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" id="tab-pdf" aria-selected="true" data-pane="pdf">PDF report</button>
+      <button class="tab" role="tab" id="tab-table" aria-selected="false" data-pane="table">Paste table</button>
+      <button class="tab" role="tab" id="tab-links" aria-selected="false" data-pane="links">Paste links</button>
+    </div>
+
+    <div id="pane-pdf">
+      <label class="drop" id="drop" for="pdf">
+        <strong>Choose your team PDF</strong>
+        <small>or drop it here. It is read on your device.</small>
+      </label>
+      <input type="file" id="pdf" accept=".pdf,application/pdf" hidden>
+    </div>
+
+    <div id="pane-table" hidden>
+      <p class="help">Copy the rows from your report or an on-screen table and paste them here, including the Layer column.</p>
+      <textarea class="big" id="table-text" placeholder="Kasly ID   Name   Country   Grade   Layer   PBV   GBV   DBV   Acc.PBV&#10;22928320   MICHAEL ...   NG   25%   1   15.00   563.50   148.00   527.10"></textarea>
+      <div class="row"><button class="btn primary" id="build-table" type="button">Build tree</button></div>
+    </div>
+
+    <div id="pane-links" hidden>
+      <p class="help">Already have the connections? Write them as <code>parent--child</code>, separated by commas, semicolons or new lines. Chains work too: <code>a--b--c</code>.</p>
+      <textarea class="big" id="links-text" placeholder="a--b;b--c,a--d"></textarea>
+      <div class="row">
+        <button class="btn primary" id="build-links" type="button">Build tree</button>
+        <button class="linkbtn" id="example" type="button">Use an example</button>
+      </div>
+    </div>
+
+    <p id="msg" role="status"></p>
+  </section>
+
+  <section class="card" id="result" hidden aria-label="Your tree">
+    <form class="search" id="search-form" role="search">
+      <input type="text" id="q" placeholder="Search by ID or name, e.g. 22947588" aria-label="Search by ID or name" autocomplete="off" inputmode="search">
+      <button class="btn primary" type="submit">Show from here</button>
+      <button class="btn" type="button" id="clear-root" hidden>Show everyone</button>
+    </form>
+    <div id="matches"></div>
+    <p id="search-msg" role="status"></p>
+
+    <div class="opts" id="opts-report">
+      <span class="lbl">Show</span>
+      <span id="cols-box" style="display:contents"></span>
+      <label><input type="checkbox" id="opt-grade" checked> Grade</label>
+      <label><input type="checkbox" id="opt-id"> ID</label>
+    </div>
+    <div class="opts">
+      <span class="lbl">Layout</span>
+      <select id="opt-dir" aria-label="Layout direction">
+        <option value="TB">Top to bottom</option>
+        <option value="LR">Left to right</option>
+      </select>
+    </div>
+
+    <div class="viewbar">
+      <div id="count"></div>
+      <div class="seg" role="group" aria-label="View">
+        <button type="button" id="v-chart" aria-pressed="true">Chart</button>
+        <button type="button" id="v-table" aria-pressed="false">Table</button>
+      </div>
+    </div>
+
+    <div id="chart-pane">
+      <div id="chart-box">
+        <div id="chart-status"></div>
+        <img id="chart" alt="Team tree chart" hidden>
+      </div>
+      <div class="actions">
+        <a class="btn" id="open" target="_blank" rel="noopener noreferrer">Open image</a>
+        <button class="btn" id="copy-link" type="button">Copy link</button>
+        <button class="btn" id="copy-dot" type="button">Copy Graphviz code</button>
+        <button class="btn" id="download" type="button">Download</button>
+        <button class="btn" id="fit" type="button">Full size</button>
+      </div>
+    </div>
+
+    <div id="table-pane" hidden>
+      <div class="tablebox"><table id="table"><thead></thead><tbody></tbody></table></div>
+      <p class="tip">Tap a row to show that person and everyone below them.</p>
+    </div>
+  </section>
+
+  <footer>
+    <b>Upline</b> by <b>Upgrade</b>. PDFs are read in your browser. Nothing is uploaded unless the quick reader can't understand your file and the optional AI reader is switched on.
+  </footer>
+</div>
+
+<script>
+/* ---------- Settings ---------- */
+const PROXY_URL = "";   // Optional: your Cloudflare Worker address (turns on the AI reader for unusual PDFs)
+const SMART_MODEL = "gemini-2.5-flash";
+const QC = "https://quickchart.io/graphviz?graph=";
+const PDFJS = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+const PDFJS_WORKER = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+const DEFAULT_SHOW = ["PBV", "GBV", "Acc.PBV", "Acc.GBV"];
+const DEFAULT_COLS = ["PBV", "GBV", "DBV", "Acc.PBV", "Acc.GBV"];
+
+/* core:start */
+const titleCase = (s) => String(s || "").toLowerCase().replace(/(^|[\s\-'])([a-z])/g, (m, a, b) => a + b.toUpperCase());
+
+function parseReport(text) {
+  const t = String(text).replace(/[\t\r\n]+/g, " ").replace(/\s+/g, " ");
+  const re = /(?:^| )(\d{6,10}) ([^\d%]+?) ([A-Z]{2}) (\d{1,3})% (\d{1,2})((?: -?[\d,]*\.\d+)+)/g;
+  const found = [];
+  let m;
+  while ((m = re.exec(t))) {
+    found.push({ id: m[1], name: titleCase(m[2].trim()), grade: m[4] + "%", layer: parseInt(m[5], 10), nums: m[6].trim().split(" ") });
+  }
+  if (!found.length) return null;
+  const n = found[0].nums.length;
+  const h = t.match(/Layer ((?:[A-Za-z][A-Za-z.]* )+?)(?=\d{6,10} )/);
+  let cols = h ? h[1].trim().split(" ") : [];
+  if (cols.length !== n) cols = DEFAULT_COLS.slice(0, n).concat(Array.from({ length: Math.max(0, n - DEFAULT_COLS.length) }, (_, i) => "Col" + (i + 6)));
+  const rows = found.map((f) => {
+    const vals = {};
+    cols.forEach((c, i) => { if (f.nums[i] != null) vals[c] = f.nums[i]; });
+    return { id: f.id, name: f.name, grade: f.grade, layer: f.layer, vals };
+  });
+  return { rows, cols };
+}
+
+function modelFromRows(rows, cols) {
+  const nodes = new Map(), edges = [], stack = [];
+  rows.forEach((r) => {
+    const id = String(r.id);
+    if (nodes.has(id)) return;
+    const layer = Math.max(1, parseInt(r.layer, 10) || 1);
+    nodes.set(id, { id, name: r.name, grade: r.grade, layer, vals: r.vals || {}, children: [] });
+    if (layer > 1) {
+      let l = layer - 1;
+      while (l > 0 && !stack[l]) l--;
+      if (l > 0) { edges.push([stack[l], id]); nodes.get(stack[l]).children.push(id); }
+    }
+    stack[layer] = id;
+    stack.length = layer + 1;
+  });
+  return { kind: "report", nodes, edges, cols };
+}
+
+function parseLinks(text) {
+  const nodes = new Map(), edges = [], seen = new Set();
+  const add = (id) => { if (!nodes.has(id)) nodes.set(id, { id, name: id, grade: "", layer: 0, vals: {}, children: [] }); };
+  String(text).split(/[;,\n]+/).forEach((piece) => {
+    const parts = piece.split(/--|->|\u2013|\u2014/).map((x) => x.trim().replace(/^["']|["']$/g, "")).filter(Boolean);
+    if (parts.length === 1) add(parts[0]);
+    for (let i = 0; i < parts.length - 1; i++) {
+      add(parts[i]); add(parts[i + 1]);
+      const key = parts[i] + "\u0001" + parts[i + 1];
+      if (parts[i] !== parts[i + 1] && !seen.has(key)) {
+        seen.add(key);
+        edges.push([parts[i], parts[i + 1]]);
+        nodes.get(parts[i]).children.push(parts[i + 1]);
+      }
+    }
+  });
+  if (!edges.length && nodes.size < 1) return null;
+  return { kind: "links", nodes, edges, cols: [] };
+}
+
+function makeView(model, rootId) {
+  if (!rootId) return { ids: [...model.nodes.keys()], edges: model.edges };
+  const seen = new Set([rootId]), queue = [rootId];
+  while (queue.length) {
+    const cur = queue.shift();
+    (model.nodes.get(cur).children || []).forEach((c) => { if (!seen.has(c)) { seen.add(c); queue.push(c); } });
+  }
+  return {
+    ids: [...model.nodes.keys()].filter((id) => seen.has(id)),
+    edges: model.edges.filter(([a, b]) => seen.has(a) && seen.has(b)),
+  };
+}
+
+function dotFor(model, view, o, rootId) {
+  const clean = (s) => String(s).replace(/\\/g, "").replace(/"/g, "'");
+  const L = ["graph {"];
+  if (o.dir === "LR") L.push("  rankdir=LR;");
+  L.push('  node [shape=box, style=rounded, fontname="Arial", fontsize=12];');
+  view.ids.forEach((id) => {
+    const n = model.nodes.get(id);
+    let label;
+    if (model.kind === "links") label = clean(n.name);
+    else {
+      label = clean(n.name) + (o.showGrade && n.grade ? " (" + clean(n.grade) + ")" : "");
+      if (o.showId) label += "\\nID: " + clean(id);
+      o.cols.forEach((c) => { if (n.vals[c] != null) label += "\\n" + clean(c) + ": " + clean(n.vals[c]); });
+    }
+    const hl = rootId && id === rootId ? ', style="rounded,filled", fillcolor="#fff3b0"' : "";
+    L.push('  "' + clean(id) + '" [label="' + label + '"' + hl + "];");
+  });
+  view.edges.forEach(([a, b]) => L.push('  "' + clean(a) + '" -- "' + clean(b) + '";'));
+  L.push("}");
+  return L.join("\n");
+}
+
+function resolveQuery(model, q) {
+  q = String(q).trim();
+  if (!q) return { all: true };
+  if (model.nodes.has(q)) return { id: q };
+  const ql = q.toLowerCase();
+  const hits = [...model.nodes.values()].filter((n) => n.id.includes(q) || n.name.toLowerCase().includes(ql));
+  if (hits.length === 1) return { id: hits[0].id };
+  if (hits.length > 1) return { matches: hits.slice(0, 8) };
+  return { none: true };
+}
+/* core:end */
+
+/* ---------- App ---------- */
+const $ = (id) => document.getElementById(id);
+let model = null, rootId = "", currentUrl = "", currentDot = "", currentSrc = "", chartToken = 0;
+const opts = { cols: [], showGrade: true, showId: false, dir: "TB" };
+
+function say(text, bad) { const m = $("msg"); m.textContent = text || ""; m.className = bad ? "bad" : ""; }
+
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = src; s.onload = resolve;
+    s.onerror = () => reject(new Error("Couldn't load the PDF reader. Check your connection."));
+    document.head.appendChild(s);
+  });
+}
+
+async function readPdfText(file) {
+  if (!window.pdfjsLib) await loadScript(PDFJS);
+  window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER;
+  const doc = await window.pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
+  let out = "";
+  for (let p = 1; p <= doc.numPages; p++) {
+    const page = await doc.getPage(p);
+    const tc = await page.getTextContent();
+    out += tc.items.map((i) => i.str).join(" ") + " ";
+  }
+  return out;
+}
+
+function toBase64(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result).split(",")[1]);
+    r.onerror = () => reject(new Error("Couldn't read the file."));
+    r.readAsDataURL(file);
+  });
+}
+
+async function smartRead(file) {
+  if (file.size > 8 * 1024 * 1024) throw new Error("That PDF is too large for the AI reader (8 MB limit).");
+  const prompt = 'Extract every row of the genealogy / team table in this PDF, in the exact order the rows appear. ' +
+    'Return ONLY a JSON array. Each item: {"id": string, "name": string, "grade": string (for example "25%"), "layer": integer, ' +
+    '"values": object mapping each numeric column header exactly as printed (for example PBV, GBV, DBV, Acc.PBV, Acc.GBV) to its value as printed}. ' +
+    'Do not skip, merge or invent rows.';
+  const body = JSON.stringify({
+    contents: [{ role: "user", parts: [{ inlineData: { mimeType: "application/pdf", data: await toBase64(file) } }, { text: prompt }] }],
+    generationConfig: { responseMimeType: "application/json", temperature: 0 },
+  });
+  const url = PROXY_URL.replace(/\/$/, "") + "/v1beta/models/" + SMART_MODEL + ":generateContent";
+  let res;
+  for (let i = 0; i < 3; i++) {
+    res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body });
+    if (res.status !== 503 && res.status !== 500) break;
+    await new Promise((r) => setTimeout(r, 1500 * (i + 1)));
+  }
+  if (!res.ok) {
+    if (res.status === 429) throw new Error("The AI reader is busy right now (free limit reached). Try again in a minute.");
+    throw new Error("The AI reader failed (" + res.status + ").");
+  }
+  const j = await res.json();
+  const txt = (j.candidates?.[0]?.content?.parts || []).map((p) => p.text || "").join("");
+  let arr;
+  try { arr = JSON.parse(txt.replace(/```json|```/g, "").trim()); } catch { throw new Error("The AI reader couldn't make sense of that file."); }
+  if (!Array.isArray(arr) || !arr.length) throw new Error("No team rows were found in that file.");
+  const cols = [];
+  const rows = arr.map((r) => {
+    const vals = {};
+    Object.keys(r.values || {}).forEach((k) => { vals[k] = String(r.values[k]); if (!cols.includes(k)) cols.push(k); });
+    return { id: String(r.id), name: titleCase(r.name), grade: String(r.grade || "").replace(/\s/g, ""), layer: parseInt(r.layer, 10) || 1, vals };
+  });
+  return { rows, cols };
+}
+
+async function handlePdf(file) {
+  if (!file) return;
+  say("Reading " + file.name + "...");
+  try {
+    let parsed = parseReport(await readPdfText(file));
+    if (!parsed && PROXY_URL) { say("Quick reader couldn't match the layout. Trying the AI reader..."); parsed = await smartRead(file); }
+    if (!parsed) { say("Couldn't find team rows in that PDF. Try the Paste table tab instead.", true); return; }
+    setModel(modelFromRows(parsed.rows, parsed.cols));
+    say("Found " + parsed.rows.length + " people in " + file.name + ".");
+  } catch (e) { say(e.message || "Couldn't read that file.", true); }
+}
+
+/* ---------- Render ---------- */
+function setModel(m) {
+  model = m; rootId = ""; $("q").value = ""; $("search-msg").textContent = ""; $("matches").innerHTML = "";
+  const box = $("cols-box");
+  box.innerHTML = "";
+  let pre = DEFAULT_SHOW.filter((c) => m.cols.includes(c));
+  if (!pre.length) pre = m.cols.slice(0, 4);
+  opts.cols = pre.slice();
+  m.cols.forEach((c) => {
+    const l = document.createElement("label");
+    const cb = document.createElement("input");
+    cb.type = "checkbox"; cb.value = c; cb.checked = pre.includes(c);
+    cb.addEventListener("change", () => {
+      opts.cols = [...box.querySelectorAll("input:checked")].map((x) => x.value);
+      refresh();
+    });
+    l.append(cb, document.createTextNode(" " + c));
+    box.appendChild(l);
+  });
+  $("opts-report").hidden = m.kind === "links";
+  $("result").hidden = false;
+  refresh();
+  $("result").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function refresh() {
+  if (!model) return;
+  const v = makeView(model, rootId);
+  currentDot = dotFor(model, v, opts, rootId);
+  currentUrl = QC + encodeURIComponent(currentDot);
+  const word = model.kind === "links" ? "nodes" : "people";
+  const rn = rootId ? model.nodes.get(rootId) : null;
+  $("count").textContent = rn
+    ? rn.name + " and " + (v.ids.length - 1) + " below"
+    : v.ids.length + " " + word;
+  $("clear-root").hidden = !rootId;
+  $("open").href = currentUrl;
+  loadChart(currentUrl, currentDot);
+  renderTable(v);
+}
+
+async function loadChart(url, dot) {
+  const token = ++chartToken;
+  const img = $("chart"), st = $("chart-status");
+  img.hidden = true; st.hidden = false; st.textContent = "Drawing chart...";
+  let src = url;
+  if (url.length > 7000) {
+    try {
+      const res = await fetch("https://quickchart.io/graphviz", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ graph: dot, layout: "dot", format: "png" }),
+      });
+      if (!res.ok) throw new Error("x");
+      src = URL.createObjectURL(await res.blob());
+    } catch { /* fall back to the long link */ }
+  }
+  if (token !== chartToken) return;
+  currentSrc = src;
+  img.onload = () => { if (token === chartToken) { st.hidden = true; img.hidden = false; } };
+  img.onerror = () => {
+    if (token !== chartToken) return;
+    st.textContent = "The chart didn't load. For a very large team, use Copy Graphviz code and paste it at quickchart.io/graphviz.";
+  };
+  img.src = src;
+}
+
+function renderTable(v) {
+  const thead = $("table").tHead, tbody = $("table").tBodies[0];
+  thead.innerHTML = ""; tbody.innerHTML = "";
+  const heads = model.kind === "links" ? ["Node", "Leads to"] : ["ID", "Name", "Grade", "Layer"].concat(model.cols);
+  const tr = document.createElement("tr");
+  heads.forEach((h, i) => {
+    const th = document.createElement("th");
+    th.textContent = h;
+    if (model.kind === "report" && i >= 3) th.className = "num";
+    tr.appendChild(th);
+  });
+  thead.appendChild(tr);
+  v.ids.forEach((id) => {
+    const n = model.nodes.get(id);
+    const row = document.createElement("tr");
+    row.tabIndex = 0;
+    if (id === rootId) row.className = "root";
+    const cells = model.kind === "links"
+      ? [n.name, n.children.join(", ")]
+      : [id, n.name, n.grade, String(n.layer)].concat(model.cols.map((c) => (n.vals[c] != null ? n.vals[c] : "")));
+    cells.forEach((c, i) => {
+      const td = document.createElement("td");
+      td.textContent = c;
+      if (model.kind === "report" && i >= 3) td.className = "num";
+      row.appendChild(td);
+    });
+    const go = () => { setRoot(id); setView("chart"); };
+    row.addEventListener("click", go);
+    row.addEventListener("keydown", (e) => { if (e.key === "Enter") go(); });
+    tbody.appendChild(row);
+  });
+}
+
+function setRoot(id) {
+  rootId = id || "";
+  $("q").value = id || "";
+  $("matches").innerHTML = ""; $("search-msg").textContent = "";
+  refresh();
+}
+
+function setView(which) {
+  $("chart-pane").hidden = which !== "chart";
+  $("table-pane").hidden = which !== "table";
+  $("v-chart").setAttribute("aria-pressed", String(which === "chart"));
+  $("v-table").setAttribute("aria-pressed", String(which === "table"));
+}
+
+async function copy(text, btn, label) {
+  try { await navigator.clipboard.writeText(text); btn.textContent = "Copied"; } catch { btn.textContent = "Copy failed"; }
+  setTimeout(() => (btn.textContent = label), 1500);
+}
+
+/* ---------- Wiring ---------- */
+document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => {
+  document.querySelectorAll(".tab").forEach((x) => x.setAttribute("aria-selected", String(x === t)));
+  ["pdf", "table", "links"].forEach((p) => { $("pane-" + p).hidden = p !== t.dataset.pane; });
+  say("");
+}));
+
+$("pdf").addEventListener("change", (e) => { handlePdf(e.target.files[0]); e.target.value = ""; });
+const drop = $("drop");
+["dragenter", "dragover"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("over"); }));
+["dragleave", "drop"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("over"); }));
+drop.addEventListener("drop", (e) => handlePdf(e.dataTransfer.files[0]));
+
+$("build-table").addEventListener("click", () => {
+  const parsed = parseReport($("table-text").value);
+  if (!parsed) { say("Couldn't find team rows. Paste the rows with ID, name, country, grade, layer and numbers.", true); return; }
+  setModel(modelFromRows(parsed.rows, parsed.cols));
+  say("Found " + parsed.rows.length + " people.");
+});
+$("build-links").addEventListener("click", () => {
+  const m = parseLinks($("links-text").value);
+  if (!m || !m.nodes.size) { say("Write at least one link, like a--b.", true); return; }
+  setModel(m);
+  say("Built a tree with " + m.nodes.size + " nodes.");
+});
+$("example").addEventListener("click", () => { $("links-text").value = "a--b;b--c,a--d"; });
+
+$("search-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  if (!model) return;
+  const r = resolveQuery(model, $("q").value);
+  const msg = $("search-msg"), box = $("matches");
+  box.innerHTML = ""; msg.textContent = "";
+  if (r.all) setRoot("");
+  else if (r.id) setRoot(r.id);
+  else if (r.none) msg.textContent = "No match for that ID or name.";
+  else {
+    msg.textContent = "Several matches. Pick one:";
+    r.matches.forEach((n) => {
+      const b = document.createElement("button");
+      b.type = "button"; b.textContent = n.name === n.id ? n.id : n.name + " (" + n.id + ")";
+      b.addEventListener("click", () => setRoot(n.id));
+      box.appendChild(b);
+    });
+  }
+});
+$("clear-root").addEventListener("click", () => setRoot(""));
+
+$("opt-grade").addEventListener("change", (e) => { opts.showGrade = e.target.checked; refresh(); });
+$("opt-id").addEventListener("change", (e) => { opts.showId = e.target.checked; refresh(); });
+$("opt-dir").addEventListener("change", (e) => { opts.dir = e.target.value; refresh(); });
+$("v-chart").addEventListener("click", () => setView("chart"));
+$("v-table").addEventListener("click", () => setView("table"));
+$("copy-link").addEventListener("click", (e) => copy(currentUrl, e.target, "Copy link"));
+$("copy-dot").addEventListener("click", (e) => copy(currentDot, e.target, "Copy Graphviz code"));
+$("fit").addEventListener("click", (e) => {
+  const full = $("chart-box").classList.toggle("full");
+  e.target.textContent = full ? "Fit to screen" : "Full size";
+});
+$("download").addEventListener("click", async () => {
+  try {
+    const blob = await (await fetch(currentSrc)).blob();
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "upline-tree." + (blob.type.includes("svg") ? "svg" : "png");
+    document.body.appendChild(a); a.click(); a.remove();
+  } catch { window.open(currentSrc || currentUrl, "_blank"); }
+});
+</script>
+</body>
+</html>

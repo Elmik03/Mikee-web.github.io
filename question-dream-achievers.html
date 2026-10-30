@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ask Dream Achievers</title>
+<style>
+  :root {
+    --bg: #eef2f6; --surface: #ffffff; --ink: #14213d; --muted: #5b6678;
+    --line: #d3dbe6; --accent: #f2a900; --accent-ink: #14213d; --error: #b3261e;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1829; --surface: #17233a; --ink: #eaf0f8; --muted: #9aa8bf;
+      --line: #2a3a58; --accent: #f2b72e; --accent-ink: #14213d; --error: #ff8a80;
+      color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: "Iowan Old Style", "Palatino Linotype", Georgia, serif; line-height: 1.6;
+  }
+  main { max-width: 680px; margin: 0 auto; padding: 56px 20px 80px; }
+  h1 { font-size: clamp(2.2rem, 7vw, 3.4rem); line-height: 1.05; margin: 0 0 12px; letter-spacing: -0.02em; }
+  header p { margin: 0; color: var(--muted); font-size: 1.05rem; max-width: 52ch; }
+  .horizon { height: 4px; width: 72px; background: var(--accent); border-radius: 2px; margin: 24px 0 36px; }
+  label { display: block; font-weight: 600; margin-bottom: 8px; }
+  textarea {
+    width: 100%; min-height: 110px; resize: vertical; padding: 14px 16px;
+    font: inherit; font-size: 1.05rem; color: var(--ink); background: var(--surface);
+    border: 1.5px solid var(--line); border-radius: 10px;
+  }
+  textarea:focus-visible, button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .row { display: flex; align-items: center; gap: 14px; margin-top: 12px; flex-wrap: wrap; }
+  button {
+    font: inherit; font-weight: 700; cursor: pointer; background: var(--accent);
+    color: var(--accent-ink); border: 0; border-radius: 10px; padding: 12px 22px;
+  }
+  button:disabled { opacity: .55; cursor: default; }
+  .hint { color: var(--muted); font-size: .9rem; }
+  #status { margin-bottom: 20px; color: var(--muted); font-size: .95rem; }
+  #status.error { color: var(--error); }
+  #answers { margin-top: 40px; display: grid; gap: 28px; }
+  .qa { border-left: 4px solid var(--accent); padding-left: 18px; }
+  .qa .q { font-weight: 700; font-size: 1.15rem; margin: 0 0 10px; }
+  .qa .a { margin: 0; white-space: pre-wrap; }
+  .qa .a.error { color: var(--error); }
+  .qa .a.loading { color: var(--muted); }
+  @media (prefers-reduced-motion: no-preference) {
+    .qa { animation: rise .35s ease-out; }
+    @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Ask Dream Achievers</h1>
+    <p>Ask any question about the book by Anthony and Eric Masi. Answers come from the book's text.</p>
+    <div class="horizon" aria-hidden="true"></div>
+  </header>
+
+  <div id="status" role="status">Loading the book…</div>
+
+  <div>
+    <label for="question">Your question</label>
+    <textarea id="question" maxlength="500"></textarea>
+    <div class="row">
+      <button id="ask" type="button" disabled>Get answer</button>
+      <span class="hint">Press Ctrl or Cmd + Enter to send</span>
+    </div>
+  </div>
+
+  <section id="answers" aria-live="polite"></section>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+/* ============================ SETTINGS ============================ */
+
+let y, k, e;
+y = "AQ.Ab8RN6JLmjBpEn2VtXwy";
+k = "12oGpEepajPWuu";
+e = "166t4DZxbrVjp2qYtQ";
+const key = y + k + e;
+const PDF_URL  = "dream-achievers.pdf";   // PDF file in the same GitHub repo folder as this page
+const API_KEY  = key; // from aistudio.google.com/apikey (restrict it to your site, see notes)
+const MODEL    = "gemini-3.5-flash";                 // change here if Google renames or retires the model
+const API_URL  = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
+const WHOLE_BOOK_LIMIT = 120000; // books shorter than this (characters) are sent in full
+const TOP_CHUNKS = 6;           // otherwise, send this many best-matching passages
+/* ================================================================== */
+
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+const statusEl = document.getElementById('status');
+const qEl = document.getElementById('question');
+const askBtn = document.getElementById('ask');
+const answers = document.getElementById('answers');
+
+let chunks = [];      // { page, text, terms:Set }
+let totalChars = 0;
+let idf = {};
+
+const STOP = new Set("a an the and or but if of to in on at by for with from as is are was were be been being it its this that these those i you he she we they what which who whom how why when where do does did can could should would will about into than then so such not no yes".split(" "));
+const tokenize = s => (s.toLowerCase().match(/[a-z0-9']+/g) || []).filter(w => w.length > 2 && !STOP.has(w));
+
+async function loadBook() {
+  const pdf = await pdfjsLib.getDocument(PDF_URL).promise;
+  for (let p = 1; p <= pdf.numPages; p++) {
+    const page = await pdf.getPage(p);
+    const content = await page.getTextContent();
+    const text = content.items.map(i => i.str).join(' ').replace(/\s+/g, ' ').trim();
+    totalChars += text.length;
+    // split each page into ~1200-character chunks with a small overlap
+    for (let i = 0; i < text.length; i += 1000) {
+      const piece = text.slice(i, i + 1200);
+      if (piece.length > 40) chunks.push({ page: p, text: piece, terms: new Set(tokenize(piece)) });
+    }
+    statusEl.textContent = `Reading the book… page ${p} of ${pdf.numPages}`;
+  }
+  if (!totalChars) throw new Error('No text found. The PDF may be scanned images.');
+  const df = {};
+  chunks.forEach(c => c.terms.forEach(t => df[t] = (df[t] || 0) + 1));
+  for (const t in df) idf[t] = Math.log(1 + chunks.length / df[t]);
+}
+
+function pickPassages(question) {
+  if (totalChars <= WHOLE_BOOK_LIMIT) return chunks;
+  const q = tokenize(question);
+  const scored = chunks.map((c, idx) => {
+    let s = 0;
+    q.forEach(t => { if (c.terms.has(t)) s += idf[t] || 0; });
+    return { c, idx, s };
+  }).sort((a, b) => b.s - a.s).slice(0, TOP_CHUNKS);
+  return scored.sort((a, b) => a.idx - b.idx).map(x => x.c);
+}
+
+function buildSystemPrompt(passages) {
+  const excerpt = passages.map(c => `[Page ${c.page}]\n${c.text}`).join('\n\n');
+  return `You answer questions about the book "Dream Achievers" by Anthony and Eric Masi.
+Use ONLY the book excerpts below. Rules:
+- If the excerpts do not contain the answer, say clearly that the book's text available to you doesn't cover it. Do not guess or use outside knowledge.
+- Write in plain, friendly language, in short paragraphs.
+- Paraphrase instead of copying long passages. Quote at most a short phrase when exact wording matters.
+- Mention page numbers when helpful, like (page 12).
+
+BOOK EXCERPTS:
+${excerpt}`;
+}
+
+function addBlock(question) {
+  const wrap = document.createElement('article');
+  wrap.className = 'qa';
+  const q = document.createElement('p'); q.className = 'q'; q.textContent = question;
+  const a = document.createElement('p'); a.className = 'a loading'; a.textContent = 'Looking through the book…';
+  wrap.append(q, a);
+  answers.prepend(wrap);
+  return a;
+}
+
+async function ask() {
+  const question = qEl.value.trim();
+  if (!question || !chunks.length) return;
+  askBtn.disabled = true;
+  const out = addBlock(question);
+  try {
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': API_KEY },
+      body: JSON.stringify({
+        system_instruction: { parts: [{ text: buildSystemPrompt(pickPassages(question)) }] },
+        contents: [{ role: 'user', parts: [{ text: question }] }]
+      })
+    });
+    if (!res.ok) throw new Error('Request failed (' + res.status + ')');
+    const data = await res.json();
+    const text = (data.candidates?.[0]?.content?.parts || [])
+      .map(p => p.text || '').join('').trim();
+    out.className = 'a';
+    out.textContent = text || 'No answer came back. Try rephrasing your question.';
+    qEl.value = '';
+  } catch (err) {
+    out.className = 'a error';
+    out.textContent = 'Could not get an answer. Check your connection and try again.';
+    console.error(err);
+  } finally {
+    askBtn.disabled = false;
+  }
+}
+
+askBtn.addEventListener('click', ask);
+qEl.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') ask(); });
+
+loadBook().then(() => {
+  statusEl.textContent = '';
+  askBtn.disabled = false;
+}).catch(err => {
+  console.error(err);
+  statusEl.className = 'error';
+  statusEl.textContent = 'Could not load the book. Check that ' + PDF_URL + ' is in the same folder as this page.';
+});
+</script>
+</body>
+</html>
